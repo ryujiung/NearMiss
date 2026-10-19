@@ -1,8 +1,6 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'nearmiss-reports';
-
   const form = document.getElementById('nearmiss-form');
   const content = document.getElementById('content');
   const micBtn = document.getElementById('mic-btn');
@@ -10,6 +8,7 @@
   const notice = document.getElementById('voice-support-notice');
   const toastEl = document.getElementById('toast');
   const historyList = document.getElementById('history-list');
+  const statsRoot = document.getElementById('stats-root');
 
   // ---------- 공통 UI ----------
   let toastTimer;
@@ -18,6 +17,40 @@
     toastEl.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => (toastEl.hidden = true), ms);
+  }
+
+  // ---------- 탭 ----------
+  const tabButtons = document.querySelectorAll('.tabs [role="tab"]');
+
+  function showTab(name) {
+    tabButtons.forEach((btn) => {
+      const selected = btn.dataset.tab === name;
+      btn.setAttribute('aria-selected', String(selected));
+      document.getElementById(btn.getAttribute('aria-controls')).hidden = !selected;
+    });
+    if (name === 'stats') {
+      if (voice) voice.stop();
+      renderStats();
+    }
+    window.scrollTo(0, 0);
+  }
+
+  tabButtons.forEach((btn) =>
+    btn.addEventListener('click', () => {
+      // 주소에 탭을 남겨서 새로고침해도 같은 탭 유지
+      history.replaceState(null, '', `#${btn.dataset.tab}`);
+      showTab(btn.dataset.tab);
+    })
+  );
+
+  async function renderStats() {
+    try {
+      const reports = await ReportStore.fetchAll();
+      NearMissStats.render(statsRoot, reports, { localOnly: ReportStore.isLocalOnly });
+    } catch (err) {
+      console.error(err);
+      statsRoot.textContent = '통계를 불러오지 못했습니다.';
+    }
   }
 
   // ---------- 음성 입력 ----------
@@ -64,8 +97,7 @@
     };
 
     try {
-      await submitReport(report);
-      saveLocal(report);
+      await ReportStore.submit(report);
       renderHistory();
       form.reset();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -76,34 +108,7 @@
     }
   });
 
-  /**
-   * 서버 전송 — 백엔드 API가 준비되면 여기만 바꾸면 됩니다.
-   * 예) return fetch('/api/near-miss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(report) })
-   *       .then((r) => { if (!r.ok) throw new Error(r.status); });
-   */
-  async function submitReport(report) {
-    console.log('[니어미스 신고]', report);
-  }
-
-  // ---------- 내 신고 내역 (기기 로컬 저장) ----------
-  function loadLocal() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    } catch {
-      return [];
-    }
-  }
-
-  function saveLocal(report) {
-    try {
-      const list = loadLocal();
-      list.unshift(report);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(0, 50)));
-    } catch {
-      /* 저장 실패해도 신고 자체에는 영향 없음 */
-    }
-  }
-
+  // ---------- 내 신고 내역 ----------
   function formatDate(iso) {
     const d = new Date(iso);
     const pad = (n) => String(n).padStart(2, '0');
@@ -111,7 +116,7 @@
   }
 
   function renderHistory() {
-    const list = loadLocal();
+    const list = ReportStore.myReports();
     historyList.innerHTML = '';
     if (!list.length) {
       historyList.innerHTML = '<li class="empty">아직 신고 내역이 없습니다.</li>';
@@ -131,4 +136,5 @@
   }
 
   renderHistory();
+  showTab(location.hash === '#stats' ? 'stats' : 'report');
 })();

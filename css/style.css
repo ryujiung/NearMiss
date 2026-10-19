@@ -176,3 +176,144 @@ textarea.voice-active { border-color: var(--danger); background: #fffafa; }
 }
 #history-list .meta { color: var(--muted); font-size: 0.8rem; margin-bottom: 4px; }
 #history-list .empty { color: var(--muted); background: transparent; padding: 0; }
+
+/* ---------- 탭 ---------- */
+.tabs {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.tabs button {
+  flex: 1;
+  padding: 14px 0;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tabs button[aria-selected="true"] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+.container[hidden] { display: none; }
+
+/* ---------- 통계 ---------- */
+:root {
+  --chart-series: #2a78d6;
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+  --chart-muted: #898781;
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.empty-state { color: var(--muted); text-align: center; padding: 40px 0; }
+
+.tiles { display: grid; gap: 8px; margin-bottom: 12px; }
+.tile { padding: 12px; }
+.tile-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tile-label { font-size: 0.8rem; color: var(--muted); }
+.tile-value { font-size: 1.25rem; font-weight: 700; }
+.tile-hero { padding: 16px; }
+.tile-hero .tile-value { font-size: 3rem; line-height: 1.1; color: var(--primary); }
+
+.stat-card { padding: 16px; margin-bottom: 12px; }
+.card-title { margin: 0; font-size: 1rem; }
+.card-sub { margin: 2px 0 12px; font-size: 0.8rem; color: var(--muted); }
+
+/* 세로 막대 */
+.col-chart { position: relative; padding-top: 8px; }
+.col-plot {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  height: 140px;
+  border-bottom: 1px solid var(--chart-axis);
+}
+.grid-top {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-top: 1px solid var(--chart-grid);
+}
+.col {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.col .bar {
+  width: min(24px, 70%);
+  background: var(--chart-series);
+  border-radius: 4px 4px 0 0;
+}
+.col.active .bar, .col:focus-visible .bar { filter: brightness(0.85); }
+.bar-value {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.col-labels { display: flex; margin-top: 4px; }
+.col-labels span {
+  flex: 1;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--chart-muted);
+  font-variant-numeric: tabular-nums;
+}
+.chart-tip {
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -100%);
+  background: #222a38;
+  color: #fff;
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+.chart-tip[hidden] { display: none; }
+
+/* 가로 막대 */
+.hbar-chart { display: grid; gap: 10px; }
+.hbar-row { display: flex; align-items: center; gap: 8px; }
+.hbar-label { width: 96px; flex-shrink: 0; font-size: 0.85rem; color: var(--text); }
+.hbar-track { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.hbar {
+  height: 20px;
+  background: var(--chart-series);
+  border-radius: 0 4px 4px 0;
+}
+.hbar-value { font-size: 0.85rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 표로 보기 */
+.table-view { margin-top: 12px; font-size: 0.85rem; }
+.table-view summary { color: var(--primary); cursor: pointer; }
+.table-view table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.table-view th, .table-view td { padding: 6px 4px; border-bottom: 1px solid var(--chart-grid); text-align: left; }
+.table-view th { color: var(--muted); font-weight: 600; }
+.table-view .num { text-align: right; font-variant-numeric: tabular-nums; }
