@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f4e8c" />
+  <title>니어미스 신고</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>니어미스 신고</h1>
+    <p class="subtitle">아차사고를 공유하면 큰 사고를 막을 수 있습니다</p>
+  </header>
+
+  <main class="container">
+    <div id="voice-support-notice" class="notice" hidden></div>
+
+    <form id="nearmiss-form" novalidate>
+      <div class="field">
+        <label for="occurredAt">발생 일시 <span class="req">*</span></label>
+        <input type="datetime-local" id="occurredAt" name="occurredAt" required />
+      </div>
+
+      <div class="field">
+        <label for="location">발생 장소 <span class="req">*</span></label>
+        <div class="input-with-mic">
+          <input type="text" id="location" name="location" placeholder="예) 2공장 3라인 컨베이어 옆" required data-voice />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="category">유형 <span class="req">*</span></label>
+        <select id="category" name="category" required>
+          <option value="">선택하세요</option>
+          <option>추락/넘어짐</option>
+          <option>끼임/협착</option>
+          <option>충돌/부딪힘</option>
+          <option>낙하/비래</option>
+          <option>감전</option>
+          <option>화재/폭발</option>
+          <option>화학물질 노출</option>
+          <option>기타</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="description">상황 설명 <span class="req">*</span></label>
+        <div class="input-with-mic">
+          <textarea id="description" name="description" rows="5" placeholder="무엇이, 어떻게 일어날 뻔했는지 적어주세요" required data-voice></textarea>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="cause">추정 원인</label>
+        <div class="input-with-mic">
+          <textarea id="cause" name="cause" rows="3" placeholder="왜 그런 상황이 생겼다고 생각하나요?" data-voice></textarea>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="suggestion">개선 제안</label>
+        <div class="input-with-mic">
+          <textarea id="suggestion" name="suggestion" rows="3" placeholder="재발 방지를 위한 아이디어" data-voice></textarea>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="reporter">신고자 (선택)</label>
+        <input type="text" id="reporter" name="reporter" placeholder="익명으로 비워둘 수 있습니다" />
+      </div>
+
+      <button type="submit" class="btn-submit">신고하기</button>
+    </form>
+
+    <section class="history">
+      <h2>내 신고 내역</h2>
+      <ul id="history-list"></ul>
+    </section>
+  </main>
+
+  <!-- 음성 인식 중 표시 -->
+  <div id="voice-status" class="voice-status" role="status" aria-live="polite" hidden>
+    <span class="pulse"></span>
+    <span id="voice-status-text">듣는 중… 말씀하세요</span>
+    <button type="button" id="voice-stop" class="voice-stop">완료</button>
+  </div>
+
+  <div id="toast" class="toast" role="alert" hidden></div>
+
+  <script src="js/voice-input.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
