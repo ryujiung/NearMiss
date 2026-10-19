@@ -4,9 +4,10 @@
   const STORAGE_KEY = 'nearmiss-reports';
 
   const form = document.getElementById('nearmiss-form');
+  const content = document.getElementById('content');
+  const micBtn = document.getElementById('mic-btn');
+  const micLabel = micBtn.querySelector('.mic-label');
   const notice = document.getElementById('voice-support-notice');
-  const statusBar = document.getElementById('voice-status');
-  const stopBtn = document.getElementById('voice-stop');
   const toastEl = document.getElementById('toast');
   const historyList = document.getElementById('history-list');
 
@@ -27,52 +28,46 @@
     voice = new VoiceInput({
       lang: 'ko-KR',
       onStatusChange: ({ listening }) => {
-        statusBar.hidden = !listening;
+        micBtn.classList.toggle('listening', listening);
+        micBtn.setAttribute('aria-pressed', String(listening));
+        micLabel.textContent = listening ? '듣는 중… 눌러서 완료' : '눌러서 말하기';
       },
       onError: (msg) => toast(msg),
     });
-    voice.attachAll('[data-voice]');
-    stopBtn.addEventListener('click', () => voice.stop());
+    voice.bind(content, micBtn);
   } else {
+    micBtn.hidden = true;
     notice.textContent = availability.reason;
     notice.hidden = false;
   }
 
   // ---------- 폼 ----------
-  // 발생 일시 기본값: 현재 시각
-  const occurredAt = document.getElementById('occurredAt');
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  occurredAt.value = now.toISOString().slice(0, 16);
-
-  form.addEventListener('input', (e) => e.target.classList.remove('invalid'));
+  content.addEventListener('input', () => content.classList.remove('invalid'));
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (voice) voice.stop();
+    // 말하는 도중 텍스트까지 포함해 현재 화면에 보이는 내용 그대로 제출
+    const text = content.value.trim();
+    if (voice) voice.abort();
 
-    // 필수값 검사
-    let firstInvalid = null;
-    form.querySelectorAll('[required]').forEach((el) => {
-      const empty = !el.value.trim();
-      el.classList.toggle('invalid', empty);
-      if (empty && !firstInvalid) firstInvalid = el;
-    });
-    if (firstInvalid) {
-      firstInvalid.focus();
-      toast('필수 항목을 입력해 주세요.');
+    if (!text) {
+      content.classList.add('invalid');
+      content.focus();
+      toast('내용을 입력하거나 말씀해 주세요.');
       return;
     }
 
-    const report = Object.fromEntries(new FormData(form).entries());
-    report.createdAt = new Date().toISOString();
+    // 원문 그대로 저장 — 장소·유형·원인 등은 이후 서버에서 추출
+    const report = {
+      content: text,
+      createdAt: new Date().toISOString(),
+    };
 
     try {
       await submitReport(report);
       saveLocal(report);
       renderHistory();
       form.reset();
-      occurredAt.value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       toast('신고가 접수되었습니다. 감사합니다!');
     } catch (err) {
@@ -109,6 +104,12 @@
     }
   }
 
+  function formatDate(iso) {
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   function renderHistory() {
     const list = loadLocal();
     historyList.innerHTML = '';
@@ -120,10 +121,11 @@
       const li = document.createElement('li');
       const meta = document.createElement('div');
       meta.className = 'meta';
-      meta.textContent = `${r.occurredAt.replace('T', ' ')} · ${r.category} · ${r.location}`;
-      const desc = document.createElement('div');
-      desc.textContent = r.description;
-      li.append(meta, desc);
+      meta.textContent = formatDate(r.createdAt);
+      const body = document.createElement('div');
+      // 이전 버전(여러 칸 입력)으로 저장된 내역도 표시
+      body.textContent = r.content || r.description || '';
+      li.append(meta, body);
       historyList.appendChild(li);
     });
   }

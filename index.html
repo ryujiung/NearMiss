@@ -17,58 +17,24 @@
     <div id="voice-support-notice" class="notice" hidden></div>
 
     <form id="nearmiss-form" novalidate>
-      <div class="field">
-        <label for="occurredAt">발생 일시 <span class="req">*</span></label>
-        <input type="datetime-local" id="occurredAt" name="occurredAt" required />
-      </div>
+      <label for="content" class="main-label">어떤 일이 있었나요?</label>
+      <ul class="hint">
+        <li>언제</li>
+        <li>어디서</li>
+        <li>무슨 일이</li>
+        <li>왜</li>
+        <li>개선 아이디어</li>
+      </ul>
 
-      <div class="field">
-        <label for="location">발생 장소 <span class="req">*</span></label>
-        <div class="input-with-mic">
-          <input type="text" id="location" name="location" placeholder="예) 2공장 3라인 컨베이어 옆" required data-voice />
-        </div>
-      </div>
+      <textarea id="content" name="content" rows="8" required
+        placeholder="예) 오늘 오후 2시쯤 2공장 3라인 컨베이어 옆에서 바닥에 기름이 새어 있어서 미끄러질 뻔했어요. 배관 연결부에서 새는 것 같고, 미끄럼 방지 매트를 깔면 좋겠어요."></textarea>
 
-      <div class="field">
-        <label for="category">유형 <span class="req">*</span></label>
-        <select id="category" name="category" required>
-          <option value="">선택하세요</option>
-          <option>추락/넘어짐</option>
-          <option>끼임/협착</option>
-          <option>충돌/부딪힘</option>
-          <option>낙하/비래</option>
-          <option>감전</option>
-          <option>화재/폭발</option>
-          <option>화학물질 노출</option>
-          <option>기타</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="description">상황 설명 <span class="req">*</span></label>
-        <div class="input-with-mic">
-          <textarea id="description" name="description" rows="5" placeholder="무엇이, 어떻게 일어날 뻔했는지 적어주세요" required data-voice></textarea>
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="cause">추정 원인</label>
-        <div class="input-with-mic">
-          <textarea id="cause" name="cause" rows="3" placeholder="왜 그런 상황이 생겼다고 생각하나요?" data-voice></textarea>
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="suggestion">개선 제안</label>
-        <div class="input-with-mic">
-          <textarea id="suggestion" name="suggestion" rows="3" placeholder="재발 방지를 위한 아이디어" data-voice></textarea>
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="reporter">신고자 (선택)</label>
-        <input type="text" id="reporter" name="reporter" placeholder="익명으로 비워둘 수 있습니다" />
-      </div>
+      <button type="button" id="mic-btn" class="mic-btn" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>
+        </svg>
+        <span class="mic-label">눌러서 말하기</span>
+      </button>
 
       <button type="submit" class="btn-submit">신고하기</button>
     </form>
@@ -78,13 +44,6 @@
       <ul id="history-list"></ul>
     </section>
   </main>
-
-  <!-- 음성 인식 중 표시 -->
-  <div id="voice-status" class="voice-status" role="status" aria-live="polite" hidden>
-    <span class="pulse"></span>
-    <span id="voice-status-text">듣는 중… 말씀하세요</span>
-    <button type="button" id="voice-stop" class="voice-stop">완료</button>
-  </div>
 
   <div id="toast" class="toast" role="alert" hidden></div>
 
