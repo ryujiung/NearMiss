@@ -125,6 +125,18 @@ def png_bytes() -> bytes:
     )
 
 
+@pytest.fixture
+def tmp_db(tmp_path):
+    """스키마가 준비된 빈 DB 연결 — 앱 없이 db 계층만 쓰는 테스트용."""
+    path = str(tmp_path / "seed-test.db")
+    db_module.init_db(path)
+    conn = db_module.get_conn(path)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
 # ---------- 집계 테스트용 ----------
 
 

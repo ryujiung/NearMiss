@@ -5,11 +5,15 @@
 신고 내용이 내려간다(사양 3.11).
 """
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
 NOW = datetime.now(timezone.utc)
-TODAY = NOW.date()
+# 집계의 날짜 구간은 현장 시간대(기본 Asia/Seoul) 기준이다 — UTC 날짜로 기대하면
+# KST 오전에 돌릴 때 하루 어긋난다.
+SITE_TZ = ZoneInfo("Asia/Seoul")
+TODAY = NOW.astimezone(SITE_TZ).date()
 
 
 @pytest.fixture

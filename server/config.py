@@ -20,6 +20,9 @@ class Settings:
     request_timeout: float = 120.0
     # 사진 저장 디렉터리. 고정 경로로 두면 테스트가 레포 안에 파일을 쓴다.
     photo_dir: str = "server/data/photos"
+    # 시각은 UTC로 저장하되, 집계의 '오늘'·'시간대' 구간은 현장 시간대로 나눈다.
+    # UTC로 나누면 KST 오전 9시 신고가 시간대별 차트의 0~3시 칸에 들어간다.
+    timezone_name: str = "Asia/Seoul"
 
 
 def get_settings() -> Settings:
@@ -34,4 +37,5 @@ def get_settings() -> Settings:
         db_path=os.environ.get("NEARMISS_DB_PATH", "nearmiss.db"),
         request_timeout=float(os.environ.get("NEARMISS_REQUEST_TIMEOUT", "120")),
         photo_dir=os.environ.get("NEARMISS_PHOTO_DIR", "server/data/photos"),
+        timezone_name=os.environ.get("NEARMISS_TIMEZONE", "Asia/Seoul"),
     )

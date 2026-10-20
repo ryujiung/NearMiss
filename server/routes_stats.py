@@ -10,9 +10,10 @@
 `submitted` 상태만 집계한다. 아직 확인 전인 초안이나 분석 실패 건이 통계에
 들어가면 "제출된 신고 건수"라는 수치의 뜻이 흐려진다(사양 3.8).
 """
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from .risk import RISK_LEVELS
 from .routes_reports import get_db_conn
@@ -34,7 +35,9 @@ def _parse(value: str) -> datetime:
 
 
 @router.get("/stats")
-def get_stats(period: str | None = None, conn=Depends(get_db_conn)) -> dict:
+def get_stats(
+    request: Request, period: str | None = None, conn=Depends(get_db_conn)
+) -> dict:
     """집계 수치를 돌려준다. 토큰이 필요 없다.
 
     `period`는 관리자 화면의 주간·월간 토글이 쓴다(사양 3.9). 전체 데이터셋을
@@ -42,8 +45,11 @@ def get_stats(period: str | None = None, conn=Depends(get_db_conn)) -> dict:
     타일은 달력 기준 고정 창이라 `period`와 무관하다 — 타일은 "데이터가 얼마나
     최근인가"를 답하는 자리고, 토글과 함께 움직이면 뜻이 흐려진다.
     """
+    # 시각은 UTC로 저장되지만 '오늘'과 '시간대' 구간은 현장 시간대로 나눈다 —
+    # UTC로 나누면 KST 오전 9시 신고가 0~3시 칸에 들어간다.
+    site_tz = ZoneInfo(request.app.state.settings.timezone_name)
     now = datetime.now(timezone.utc)
-    today = now.date()
+    today = now.astimezone(site_tz).date()
 
     rows = conn.execute(
         "SELECT created_at, risk, category FROM reports WHERE status = 'submitted'"
@@ -51,6 +57,7 @@ def get_stats(period: str | None = None, conn=Depends(get_db_conn)) -> dict:
     records = [
         {
             "at": _parse(row["created_at"]),
+            "local": _parse(row["created_at"]).astimezone(site_tz),
             "risk": row["risk"],
             "category": row["category"],
         }
@@ -70,7 +77,7 @@ def get_stats(period: str | None = None, conn=Depends(get_db_conn)) -> dict:
 
     daily_counts: dict[str, int] = {}
     for record in scoped:
-        key = record["at"].date().isoformat()
+        key = record["local"].date().isoformat()
         daily_counts[key] = daily_counts.get(key, 0) + 1
 
     daily = [
@@ -83,7 +90,7 @@ def get_stats(period: str | None = None, conn=Depends(get_db_conn)) -> dict:
 
     bins = [0] * (24 // HOUR_BIN)
     for record in scoped:
-        bins[record["at"].hour // HOUR_BIN] += 1
+        bins[record["local"].hour // HOUR_BIN] += 1
     hourly = [
         {"from": i * HOUR_BIN, "to": (i + 1) * HOUR_BIN, "value": value}
         for i, value in enumerate(bins)
@@ -109,7 +116,7 @@ def get_stats(period: str | None = None, conn=Depends(get_db_conn)) -> dict:
 
     return {
         "total": len(scoped),
-        "today": sum(1 for r in records if r["at"].date() == today),
+        "today": sum(1 for r in records if r["local"].date() == today),
         "week": count_since(7),
         "month": count_since(30),
         "daily": daily,
