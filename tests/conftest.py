@@ -14,7 +14,10 @@ from contextlib import ExitStack
 import pytest
 from fastapi.testclient import TestClient
 
+import server.drafts
+from server import db as db_module
 from server.config import Settings
+from server.llm import LLMError, MockProvider
 from server.main import create_app
 
 
@@ -108,3 +111,112 @@ def settings(**overrides) -> Settings:
     )
     defaults.update(overrides)
     return Settings(**defaults)
+
+
+# ---------- 초안 생성 잡 테스트용 ----------
+
+
+def _create_report(client, *, content, reporter=None, reporter_id="dev-1", uuid="u-draft"):
+    payload = {"client_uuid": uuid, "content": content, "reporter_id": reporter_id}
+    if reporter is not None:
+        payload["reporter"] = reporter
+    return client.post("/api/reports", json=payload).json()["id"]
+
+
+@pytest.fixture
+def report_id(client):
+    """초안이 아직 없는 신고 하나."""
+    return _create_report(client, content="3층 계단 난간 헐거움, 넘어질 뻔함")
+
+
+@pytest.fixture
+def report_id_with_name(client):
+    """실명이 구조화된 인적사항에만 들어 있는 신고.
+
+    원문에는 이름을 넣지 않는다 — 사양 3.4는 원문을 분석의 근거로 보아 치환하지
+    않기로 했으므로, 원문에 이름을 넣으면 "프롬프트에 실명이 없다"는 검증이
+    사양과 모순된다. 여기서 고정해야 하는 것은 구조화된 인적사항이 프롬프트로
+    새지 않는다는 것이다.
+    """
+    return _create_report(
+        client,
+        content="2공장 3라인에서 미끄러질 뻔함",
+        reporter={"org": "두원기업", "name": "박민수", "role": "축로공", "count": 3},
+        uuid="u-draft-name",
+    )
+
+
+class _RecordingProvider:
+    """호출된 메시지를 기록하는 프로바이더. 응답은 mock 픽스처를 쓴다."""
+
+    def __init__(self):
+        self.calls: list[list[dict]] = []
+
+    @property
+    def call_count(self) -> int:
+        return len(self.calls)
+
+    @property
+    def last_prompt_text(self) -> str:
+        return "".join(m["content"] for m in self.calls[-1]) if self.calls else ""
+
+    async def complete(self, messages: list[dict]) -> str:
+        self.calls.append(messages)
+        return await MockProvider().complete(messages)
+
+
+class _UnparseableProvider(_RecordingProvider):
+    """JSON이 없는 응답을 돌려준다 — DraftParseError 경로를 재현한다."""
+
+    async def complete(self, messages: list[dict]) -> str:
+        self.calls.append(messages)
+        return "죄송합니다, 분석할 수 없습니다."
+
+
+class _FailThenWorkProvider(_RecordingProvider):
+    """첫 호출만 전송 실패, 이후는 정상 — 재시도 버튼 경로를 재현한다."""
+
+    async def complete(self, messages: list[dict]) -> str:
+        self.calls.append(messages)
+        if self.call_count == 1:
+            raise LLMError("일시적 장애")
+        return await MockProvider().complete(messages)
+
+
+def _patch_provider(monkeypatch, provider):
+    """run_draft_job이 쓰는 get_provider를 테스트 프로바이더로 바꾼다."""
+    monkeypatch.setattr(server.drafts, "get_provider", lambda settings: provider)
+    return provider
+
+
+@pytest.fixture
+def capture_provider(monkeypatch):
+    return _patch_provider(monkeypatch, _RecordingProvider())
+
+
+@pytest.fixture
+def broken_provider(monkeypatch):
+    return _patch_provider(monkeypatch, _UnparseableProvider())
+
+
+@pytest.fixture
+def broken_then_working_provider(monkeypatch):
+    return _patch_provider(monkeypatch, _FailThenWorkProvider())
+
+
+@pytest.fixture
+def set_status(client):
+    """신고의 status를 직접 바꾼다.
+
+    TestClient는 백그라운드 잡을 응답 반환 전에 끝내므로 `analyzing` 같은 중간
+    상태를 요청만으로는 만들 수 없다. 상태 가드를 겨냥하는 테스트가 그 상태를
+    직접 만들기 위한 통로다.
+    """
+    def _set(report_id: str, status: str) -> None:
+        conn = db_module.get_conn(client.app.state.settings.db_path)
+        try:
+            db_module.update_report(conn, report_id, {"status": status})
+        finally:
+            conn.close()
+
+    return _set

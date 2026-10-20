@@ -34,15 +34,29 @@ def init_db(path: str) -> None:
                 risk_reason TEXT,
                 category TEXT,
                 status TEXT NOT NULL,
+                draft_error TEXT,
                 acknowledged INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
             """
         )
+        _add_missing_columns(conn)
         conn.commit()
     finally:
         conn.close()
+
+
+# CREATE TABLE IF NOT EXISTS는 이미 있는 표에 새 칸을 더해주지 않는다. 개발 중에
+# 만들어 둔 DB가 있어도 깨지지 않도록, 나중에 추가된 칸은 여기서 메운다.
+_LATER_COLUMNS = (("draft_error", "TEXT"),)
+
+
+def _add_missing_columns(conn: sqlite3.Connection) -> None:
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(reports)")}
+    for name, coltype in _LATER_COLUMNS:
+        if name not in existing:
+            conn.execute(f"ALTER TABLE reports ADD COLUMN {name} {coltype}")
 
 
 def get_conn(path: str | None = None) -> sqlite3.Connection:

@@ -9,17 +9,25 @@ import secrets
 from fastapi import Header, HTTPException, Request
 
 
-def require_admin(request: Request, authorization: str = Header(None)) -> None:
-    """`Authorization: Bearer <토큰>` 헤더가 설정된 관리자 토큰과 일치하는지 확인한다.
+def is_admin(authorization: str | None, settings) -> bool:
+    """관리자 토큰이 일치하는지 판정한다(예외를 던지지 않는 형태).
 
     토큰이 설정되지 않은 경우(빈 문자열)에도 통과시키지 않는다 — 그렇지 않으면
     헤더 없는 요청(빈 문자열)과 빈 토큰이 `compare_digest`에서 서로 같다고 판정되어
     관리자 토큰을 아예 설정하지 않은 배포가 누구에게나 열리게 된다.
+
+    "관리자면 허용, 아니면 다른 조건을 본다"는 경로(초안 폴링 등)가 필요해서
+    분리했다. 비교 로직이 두 곳으로 갈라지지 않도록 require_admin도 이 함수를 쓴다.
     """
-    expected = request.app.state.settings.admin_token
+    expected = settings.admin_token
     provided = ""
     if authorization and authorization.startswith("Bearer "):
         provided = authorization[len("Bearer "):]
 
-    if not expected or not secrets.compare_digest(provided, expected):
+    return bool(expected) and secrets.compare_digest(provided, expected)
+
+
+def require_admin(request: Request, authorization: str = Header(None)) -> None:
+    """`Authorization: Bearer <토큰>` 헤더가 설정된 관리자 토큰과 일치하는지 확인한다."""
+    if not is_admin(authorization, request.app.state.settings):
         raise HTTPException(status_code=401, detail="관리자 토큰이 유효하지 않습니다")

@@ -7,10 +7,19 @@ import json
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+)
 
 from . import db as db_module
-from .auth import require_admin
+from .auth import is_admin, require_admin
+from .drafts import run_draft_job
 from .masking import format_identity, mask_name
 from .models import ReportCreate, ReporterOut, ReportOut
 
@@ -138,6 +147,63 @@ def list_all_reports(
     since = _period_to_since(period)
     rows = db_module.list_reports(conn, risk=risk, status=status, since=since)
     return [_row_to_admin_out(row) for row in rows]
+
+
+def _is_own_or_admin(row: dict, reporter_id: str, authorization: str | None,
+                     settings) -> bool:
+    """자기 기기 건이면 토큰 없이, 남의 건이면 관리자 토큰으로만 볼 수 있다.
+
+    작업자는 자기 초안을 확인해야 하므로 토큰을 요구할 수 없고, 관리자는 미분류
+    건을 들여다봐야 하므로 막을 수 없다.
+    """
+    if row["reporter_id"] == reporter_id:
+        return True
+    return is_admin(authorization, settings)
+
+
+@router.post("/{report_id}/draft", status_code=202)
+def request_draft(
+    report_id: str,
+    background: BackgroundTasks,
+    request: Request,
+    conn=Depends(get_db_conn),
+) -> dict:
+    """초안 생성을 의뢰한다. 즉시 202로 돌아가고 생성은 백그라운드에서 돈다."""
+    row = db_module.get_report(conn, report_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
+
+    if row["status"] == "analyzing":
+        # 이미 돌고 있는 잡이 있으면 새로 띄우지 않는다.
+        return {"status": "analyzing"}
+
+    settings = request.app.state.settings
+    background.add_task(run_draft_job, report_id, settings)
+    return {"status": "analyzing"}
+
+
+@router.get("/{report_id}/draft")
+def get_draft(
+    report_id: str,
+    reporter_id: str,
+    request: Request,
+    authorization: str | None = Header(None),
+    conn=Depends(get_db_conn),
+) -> dict:
+    """초안 폴링 — 상태와 (있으면) 초안을 돌려준다."""
+    row = db_module.get_report(conn, report_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
+
+    if not _is_own_or_admin(row, reporter_id, authorization, request.app.state.settings):
+        raise HTTPException(status_code=403, detail="이 신고의 초안을 볼 수 없습니다")
+
+    return {
+        "status": row["status"],
+        "draft": json.loads(row["draft_json"]) if row.get("draft_json") else None,
+        "risk": row.get("risk"),
+        "error": row.get("draft_error"),
+    }
 
 
 @router.get(
