@@ -89,3 +89,22 @@ def seeded_report(client):
         },
     )
     return resp.json()["id"]
+
+
+def settings(**overrides) -> Settings:
+    """테스트용 Settings — 기본값 위에 필요한 값만 덮어쓴다.
+
+    LLM 프로바이더처럼 앱/DB가 필요 없는 단위 테스트가 Settings만 받아 쓰는 경로다.
+    픽스처가 아니라 평범한 헬퍼라서 `settings(api_key="k")`처럼 바로 호출한다.
+    """
+    defaults = dict(
+        api_base_url="https://api.example.invalid",
+        api_key="",
+        model="",
+        admin_token="",
+        webhook_url=None,
+        llm_mode="live",
+        db_path=":memory:",
+    )
+    defaults.update(overrides)
+    return Settings(**defaults)
