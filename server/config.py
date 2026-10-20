@@ -18,6 +18,8 @@ class Settings:
     # 사내 API의 응답 지연을 모르는 전제이므로 넉넉히 두고, 데모 중 조정할 수 있게
     # 환경변수로도 노출한다.
     request_timeout: float = 120.0
+    # 사진 저장 디렉터리. 고정 경로로 두면 테스트가 레포 안에 파일을 쓴다.
+    photo_dir: str = "server/data/photos"
 
 
 def get_settings() -> Settings:
@@ -31,4 +33,5 @@ def get_settings() -> Settings:
         llm_mode=os.environ.get("NEARMISS_LLM_MODE", "live"),
         db_path=os.environ.get("NEARMISS_DB_PATH", "nearmiss.db"),
         request_timeout=float(os.environ.get("NEARMISS_REQUEST_TIMEOUT", "120")),
+        photo_dir=os.environ.get("NEARMISS_PHOTO_DIR", "server/data/photos"),
     )

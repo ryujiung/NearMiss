@@ -8,6 +8,7 @@
 lifespan 훅이 실행되어 DB 스키마가 준비된다 — 그래서 이 픽스처가 ExitStack으로
 각 클라이언트의 생명주기를 관리하고, 테스트가 끝나면 한꺼번에 정리한다.
 """
+import base64
 import itertools
 import json
 from contextlib import ExitStack
@@ -54,6 +55,7 @@ def make_client(tmp_path):
             admin_token="",
             webhook_url=None,
             llm_mode="mock",
+            photo_dir=str(tmp_path / "photos"),
         )
         defaults.update(overrides)
         settings = Settings(db_path=db_path, **defaults)
@@ -112,6 +114,15 @@ def settings(**overrides) -> Settings:
     )
     defaults.update(overrides)
     return Settings(**defaults)
+
+
+@pytest.fixture
+def png_bytes() -> bytes:
+    """최소한의 유효한 PNG 1x1 투명 이미지."""
+    return base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8"
+        "AAAwAB/0E6+hcAAAAASUVORK5CYII="
+    )
 
 
 # ---------- 초안 생성 잡 테스트용 ----------

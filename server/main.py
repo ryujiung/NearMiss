@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import Settings, get_settings
 from . import db as db_module
+from .routes_photos import router as photos_router
 from .routes_reports import router as reports_router
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -33,6 +34,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # API 라우터를 먼저 등록 — 이후 등록되는 정적 마운트가 /api를 가리지 않도록 한다.
     app.include_router(reports_router)
+    app.include_router(photos_router)
 
     app.mount("/css", StaticFiles(directory=str(BASE_DIR / "css")), name="css")
     app.mount("/js", StaticFiles(directory=str(BASE_DIR / "js")), name="js")

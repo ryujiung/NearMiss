@@ -20,3 +20,6 @@ venv/
 
 # SDD 작업 공간 (ledger, brief, 리뷰 패키지)
 .superpowers/sdd/
+
+# 업로드된 사진 (기본 저장 경로)
+server/data/

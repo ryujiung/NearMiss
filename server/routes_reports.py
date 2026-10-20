@@ -77,10 +77,15 @@ def _masked_reporter_and_identity(row: dict) -> tuple[ReporterOut | None, str | 
     return masked_reporter, identity_line
 
 
-def _row_to_admin_out(row: dict) -> ReportOut:
+def _row_to_admin_out(row: dict, conn=None) -> ReportOut:
     """관리자 목록·상세 응답 직렬화. 원문은 포함하고 실명은 마스킹한다."""
     out = _row_to_out(row)
     out.reporter, out.identity_line = _masked_reporter_and_identity(row)
+    if conn is not None:
+        out.photos = [
+            {"photo_id": p["id"], "url": f"/api/photos/{p['id']}"}
+            for p in db_module.list_photos(conn, row["id"])
+        ]
     return out
 
 
@@ -146,7 +151,7 @@ def list_all_reports(
     """관리자 목록 — 전체 신고, 원문 포함, 인적사항은 마스킹."""
     since = _period_to_since(period)
     rows = db_module.list_reports(conn, risk=risk, status=status, since=since)
-    return [_row_to_admin_out(row) for row in rows]
+    return [_row_to_admin_out(row, conn) for row in rows]
 
 
 def _is_own_or_admin(row: dict, reporter_id: str, authorization: str | None,
@@ -266,7 +271,7 @@ def get_report_detail(report_id: str, conn=Depends(get_db_conn)) -> ReportOut:
     row = db_module.get_report(conn, report_id)
     if row is None:
         raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
-    return _row_to_admin_out(row)
+    return _row_to_admin_out(row, conn)
 
 
 @router.get("/{report_id}/identity", dependencies=[Depends(require_admin)])

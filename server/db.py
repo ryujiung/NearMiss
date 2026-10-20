@@ -41,10 +41,45 @@ def init_db(path: str) -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS photos (
+                id TEXT PRIMARY KEY,
+                report_id TEXT NOT NULL,
+                path TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         _add_missing_columns(conn)
         conn.commit()
     finally:
         conn.close()
+
+
+def insert_photo(conn: sqlite3.Connection, photo: dict) -> None:
+    conn.execute(
+        """
+        INSERT INTO photos (id, report_id, path, content_type, created_at)
+        VALUES (:id, :report_id, :path, :content_type, :created_at)
+        """,
+        photo,
+    )
+    conn.commit()
+
+
+def get_photo(conn: sqlite3.Connection, photo_id: str) -> dict | None:
+    row = conn.execute("SELECT * FROM photos WHERE id = ?", (photo_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def list_photos(conn: sqlite3.Connection, report_id: str) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM photos WHERE report_id = ? ORDER BY created_at",
+        (report_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
 
 
 # CREATE TABLE IF NOT EXISTS는 이미 있는 표에 새 칸을 더해주지 않는다. 개발 중에

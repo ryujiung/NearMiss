@@ -51,6 +51,8 @@ class ReportOut(BaseModel):
     # 관리자 목록·상세 응답에만 채워진다. /mine 응답에는 없다(None).
     reporter: ReporterOut | None = None
     identity_line: str | None = None
+    # 속보 양식의 사진 칸(최대 2장). 관리자 응답에만 채운다.
+    photos: list[dict] = []
 
 
 class DraftPatch(BaseModel):
