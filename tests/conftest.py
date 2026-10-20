@@ -125,6 +125,56 @@ def png_bytes() -> bytes:
     )
 
 
+# ---------- 집계 테스트용 ----------
+
+
+@pytest.fixture
+def insert_report(client):
+    """집계 테스트가 created_at·risk·category·status를 직접 정해 신고를 넣는다.
+
+    API로는 risk나 status를 지정할 수 없다(AI가 채우는 값이다). 집계의 구간
+    경계와 상태 필터를 검증하려면 그 값들을 통제해야 하므로 DB에 바로 쓴다.
+    """
+    counter = itertools.count(1)
+
+    def _insert(
+        *,
+        created_at,
+        status="submitted",
+        risk="중",
+        category="추락/넘어짐",
+        content="난간이 흔들려 넘어질 뻔함",
+        reporter=None,
+    ):
+        n = next(counter)
+        conn = db_module.get_conn(client.app.state.settings.db_path)
+        try:
+            report_id = f"stat-{n}"
+            db_module.insert_report(
+                conn,
+                {
+                    "id": report_id,
+                    "client_uuid": f"stat-uuid-{n}",
+                    "reporter_id": "dev-stats",
+                    "content": content,
+                    "reporter_json": json.dumps(reporter) if reporter else None,
+                    "draft_json": None,
+                    "risk": risk,
+                    "risk_reason": None,
+                    "category": category,
+                    "status": status,
+                    "acknowledged": False,
+                    "created_at": created_at.isoformat(),
+                    "updated_at": created_at.isoformat(),
+                },
+            )
+            return report_id
+        finally:
+            conn.close()
+
+    return _insert
+
+
 # ---------- 초안 생성 잡 테스트용 ----------
 
 
