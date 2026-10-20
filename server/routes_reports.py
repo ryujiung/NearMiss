@@ -22,6 +22,7 @@ from .auth import is_admin, require_admin
 from .drafts import run_draft_job
 from .masking import format_identity, mask_name
 from .models import DraftPatch, ReportCreate, ReporterOut, ReportOut
+from .webhook import notify_high_risk
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -154,6 +155,22 @@ def list_all_reports(
     return [_row_to_admin_out(row, conn) for row in rows]
 
 
+@router.get(
+    "/unacknowledged",
+    response_model=list[ReportOut],
+    dependencies=[Depends(require_admin)],
+)
+def list_unacknowledged(conn=Depends(get_db_conn)) -> list[ReportOut]:
+    """위험도 '상'이면서 아직 관리자가 열어보지 않은 건.
+
+    이 라우트는 `/{report_id}`보다 **먼저** 선언돼야 한다 — 뒤에 두면 FastAPI가
+    "unacknowledged"를 report_id로 받아 404를 돌려준다.
+    """
+    rows = db_module.list_reports(conn, risk="상", status="submitted")
+    pending = [row for row in rows if not row.get("acknowledged")]
+    return [_row_to_admin_out(row, conn) for row in pending]
+
+
 def _is_own_or_admin(row: dict, reporter_id: str, authorization: str | None,
                      settings) -> bool:
     """자기 기기 건이면 토큰 없이, 남의 건이면 관리자 토큰으로만 볼 수 있다.
@@ -225,18 +242,41 @@ def patch_draft(
 
 
 @router.post("/{report_id}/submit")
-def submit_report(report_id: str, conn=Depends(get_db_conn)) -> dict:
+def submit_report(
+    report_id: str,
+    background: BackgroundTasks,
+    request: Request,
+    conn=Depends(get_db_conn),
+) -> dict:
     """최종 제출 — 한 번의 터치로 끝난다.
 
     빈 칸이나 미응답 확인 질문을 사유로 거절하지 않는다. 제출을 막으면 기록이
     아예 남지 않고, 그것이 이 제품이 없애려는 원래 문제다(사양 2 안티목표).
+
+    위험도 '상'이면 알림을 띄운다 — 백그라운드로 보내므로 알림이 느려도 작업자의
+    제출은 기다리지 않는다.
     """
     row = db_module.get_report(conn, report_id)
     if row is None:
         raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
 
     db_module.update_report(conn, report_id, {"status": "submitted"})
+
+    if row.get("risk") == "상":
+        background.add_task(
+            notify_high_risk, dict(row), request.app.state.settings
+        )
+
     return {"id": report_id, "status": "submitted"}
+
+
+@router.post("/{report_id}/acknowledge", dependencies=[Depends(require_admin)])
+def acknowledge_report(report_id: str, conn=Depends(get_db_conn)) -> dict:
+    """관리자가 고위험 건을 확인했다고 표시한다 — 미확인 큐에서 빠진다."""
+    if db_module.get_report(conn, report_id) is None:
+        raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
+    db_module.update_report(conn, report_id, {"acknowledged": True})
+    return {"id": report_id, "acknowledged": True}
 
 
 @router.get("/{report_id}/draft")
