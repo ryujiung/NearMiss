@@ -21,7 +21,7 @@ from . import db as db_module
 from .auth import is_admin, require_admin
 from .drafts import run_draft_job
 from .masking import format_identity, mask_name
-from .models import ReportCreate, ReporterOut, ReportOut
+from .models import DraftPatch, ReportCreate, ReporterOut, ReportOut
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -180,6 +180,58 @@ def request_draft(
     settings = request.app.state.settings
     background.add_task(run_draft_job, report_id, settings)
     return {"status": "analyzing"}
+
+
+@router.patch("/{report_id}/draft", status_code=202)
+def patch_draft(
+    report_id: str,
+    payload: DraftPatch,
+    background: BackgroundTasks,
+    request: Request,
+    conn=Depends(get_db_conn),
+) -> dict:
+    """초안을 고치거나, 확인 질문 답변으로 재생성을 요청한다.
+
+    `fields`만 오면 LLM을 부르지 않고 저장만 한다 — 칸 하나 고칠 때마다 사내
+    API를 호출할 이유가 없다. `answers`가 오면 재생성 잡을 띄운다.
+    """
+    row = db_module.get_report(conn, report_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
+
+    if payload.fields:
+        draft = json.loads(row["draft_json"]) if row.get("draft_json") else {}
+        draft.update(payload.fields)
+        # 고친 칸은 출처를 user로 바꾼다. 나머지 칸의 출처는 그대로 둔다.
+        sources = draft.get("sources") or {}
+        sources.update({field: "user" for field in payload.fields})
+        draft["sources"] = sources
+        db_module.update_report(
+            conn, report_id, {"draft_json": json.dumps(draft, ensure_ascii=False)}
+        )
+
+    if payload.answers:
+        settings = request.app.state.settings
+        background.add_task(
+            run_draft_job, report_id, settings, answers=payload.answers
+        )
+
+    return {"status": "accepted"}
+
+
+@router.post("/{report_id}/submit")
+def submit_report(report_id: str, conn=Depends(get_db_conn)) -> dict:
+    """최종 제출 — 한 번의 터치로 끝난다.
+
+    빈 칸이나 미응답 확인 질문을 사유로 거절하지 않는다. 제출을 막으면 기록이
+    아예 남지 않고, 그것이 이 제품이 없애려는 원래 문제다(사양 2 안티목표).
+    """
+    row = db_module.get_report(conn, report_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
+
+    db_module.update_report(conn, report_id, {"status": "submitted"})
+    return {"id": report_id, "status": "submitted"}
 
 
 @router.get("/{report_id}/draft")

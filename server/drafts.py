@@ -42,6 +42,32 @@ async def _ask_model(provider, messages) -> dict:
     raise last_error
 
 
+def locked_fields(draft: dict | None) -> dict:
+    """작업자가 손으로 고친 칸만 골라낸다.
+
+    이 칸들은 재생성 결과로 덮지 않는다. 고친 값이 날아가면 같은 입력을 두 번
+    하게 되어 "입력이 다시 양식이 되는 것" 안티목표를 정면으로 깬다(사양 3.5).
+    """
+    if not draft:
+        return {}
+    sources = draft.get("sources") or {}
+    return {
+        field: draft[field]
+        for field, origin in sources.items()
+        if origin == "user" and field in draft
+    }
+
+
+def mark_sources(draft: dict, locked: dict) -> dict:
+    """칸별 출처를 기록한다 — 화면이 AI가 채운 칸을 표시할 근거다(사양 3.2)."""
+    draft["sources"] = {
+        field: ("user" if field in locked else "ai")
+        for field in draft
+        if field != "sources"
+    }
+    return draft
+
+
 async def run_draft_job(
     report_id: str, settings: Settings, *, answers: dict | None = None
 ) -> None:
@@ -64,10 +90,14 @@ async def run_draft_job(
             conn, report_id, {"status": "analyzing", "draft_error": None}
         )
 
+        previous = json.loads(row["draft_json"]) if row.get("draft_json") else None
+        locked = locked_fields(previous)
+
         messages = build_draft_prompt(
             row["content"],
             now=datetime.now(timezone.utc),
             answers=answers or None,
+            locked=locked or None,
         )
 
         try:
@@ -77,6 +107,11 @@ async def run_draft_job(
                 conn, report_id, {"status": "failed", "draft_error": str(exc)}
             )
             return
+
+        # 모델이 잠긴 칸에 뭘 써 보냈든 작업자가 확정한 값으로 되돌린다.
+        # 프롬프트에 "덮지 말 것"으로 넣었지만 지시만으로 믿지는 않는다.
+        draft.update(locked)
+        mark_sources(draft, locked)
 
         db_module.update_report(
             conn,

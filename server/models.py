@@ -51,3 +51,15 @@ class ReportOut(BaseModel):
     # 관리자 목록·상세 응답에만 채워진다. /mine 응답에는 없다(None).
     reporter: ReporterOut | None = None
     identity_line: str | None = None
+
+
+class DraftPatch(BaseModel):
+    """초안 수정/재생성 요청.
+
+    둘 다 선택이다. `fields`만 오면 저장만 하고, `answers`가 오면 재생성한다.
+    둘 다 비어 있어도 거절하지 않는다 — 작업자가 확인 질문을 건너뛰고 그대로
+    제출하는 경로를 막지 않기 위해서다.
+    """
+
+    answers: dict[str, str] = {}
+    fields: dict[str, object] = {}

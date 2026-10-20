@@ -9,6 +9,7 @@ lifespan 훅이 실행되어 DB 스키마가 준비된다 — 그래서 이 픽�
 각 클라이언트의 생명주기를 관리하고, 테스트가 끝나면 한꺼번에 정리한다.
 """
 import itertools
+import json
 from contextlib import ExitStack
 
 import pytest
@@ -202,6 +203,44 @@ def broken_provider(monkeypatch):
 @pytest.fixture
 def broken_then_working_provider(monkeypatch):
     return _patch_provider(monkeypatch, _FailThenWorkProvider())
+
+
+class _VaryingProvider(_RecordingProvider):
+    """호출마다 overview가 달라지는 프로바이더.
+
+    재생성이 AI 칸을 실제로 새로 채우는지 확인하려면 응답이 같으면 안 된다 —
+    같은 값이 돌아오면 "덮어쓰지 않았다"와 "덮어썼는데 같다"를 구분할 수 없다.
+    """
+
+    async def complete(self, messages: list[dict]) -> str:
+        self.calls.append(messages)
+        draft = json.loads(await MockProvider().complete(messages))
+        draft["overview"] = [f"{self.call_count}회차 서술"]
+        return json.dumps(draft, ensure_ascii=False)
+
+
+@pytest.fixture
+def varying_provider(monkeypatch):
+    return _patch_provider(monkeypatch, _VaryingProvider())
+
+
+@pytest.fixture
+def ready_report(client, report_id):
+    """초안 생성이 끝난(status=ready) 신고.
+
+    프로바이더 픽스처에 의존하지 않는다 — make_client가 llm_mode="mock"을 기본값으로
+    두므로 패치 없이도 MockProvider가 쓰인다. 여기서 capture_provider를 끌어오면
+    varying_provider를 쓰려는 테스트에서 패치가 서로 겹친다.
+    """
+    client.post(f"/api/reports/{report_id}/draft")
+    return report_id
+
+
+def current_draft(client, report_id, reporter_id="dev-1"):
+    """폴링 엔드포인트에서 현재 초안을 꺼내는 테스트 헬퍼."""
+    return client.get(
+        f"/api/reports/{report_id}/draft", params={"reporter_id": reporter_id}
+    ).json()["draft"]
 
 
 @pytest.fixture
