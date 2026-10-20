@@ -42,3 +42,23 @@ def test_detail_requires_token(client, seeded_report):
 def test_mine_does_not_leak_other_devices(client, seeded_report):
     rows = client.get("/api/reports/mine", params={"reporter_id": "other-device"}).json()
     assert rows == []
+
+
+def test_unconfigured_admin_token_rejects_empty_bearer_credential(make_client):
+    """admin_token이 설정되지 않은(빈 문자열) 배포에서 빈 Bearer 자격증명을 보내면
+    통과해 버리는 회귀를 막는 테스트.
+
+    `require_admin`의 `if not expected or not secrets.compare_digest(provided, expected)`
+    에서 `not expected or` 부분이 빠지면, 헤더 없는 요청의 provided=""가 미설정
+    expected=""와 `compare_digest`에서 "같다"고 판정돼(빈 문자열끼리는 항상 True)
+    토큰을 설정하지 않은 배포가 누구에게나 관리자 권한을 열어주게 된다. 이 테스트는
+    그 가드 라인을 고정해, 나중에 조건을 "단순화"하려는 시도가 있으면 바로 깨지게 한다.
+    """
+    unconfigured_client = make_client(admin_token="")
+    assert (
+        unconfigured_client.get(
+            "/api/reports", headers={"Authorization": "Bearer "}
+        ).status_code
+        == 401
+    )
+    assert unconfigured_client.get("/api/reports").status_code == 401
