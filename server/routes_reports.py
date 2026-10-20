@@ -7,7 +7,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 
 from . import db as db_module
 from .models import ReportCreate, ReportOut
@@ -15,8 +15,15 @@ from .models import ReportCreate, ReportOut
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
-def get_db_conn():
-    conn = db_module.get_conn()
+def get_db_conn(request: Request):
+    """요청이 속한 앱의 설정에서 DB 경로를 읽어 연결한다.
+
+    db_module.get_conn()을 인자 없이 쓰면 "마지막에 init_db가 설정한 경로"라는
+    전역 상태에 의존하게 되어, 같은 프로세스에 앱이 여러 개 떠 있을 때(테스트에서
+    여러 TestClient를 함께 쓰는 경우 등) 서로의 DB를 덮어써 버린다. 그래서 항상
+    요청이 속한 앱(request.app.state.settings)의 경로를 명시적으로 넘긴다.
+    """
+    conn = db_module.get_conn(request.app.state.settings.db_path)
     try:
         yield conn
     finally:
