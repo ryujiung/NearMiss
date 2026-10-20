@@ -62,4 +62,30 @@ def make_client(tmp_path):
 
 @pytest.fixture
 def client(make_client):
-    return make_client()
+    # admin_token을 고정값으로 둬서 관리자 엔드포인트 테스트(test_access_control.py)가
+    # 매번 다른 토큰을 오버라이드하지 않고 바로 ADMIN 헤더를 쓸 수 있게 한다.
+    return make_client(admin_token="test-admin-token")
+
+
+@pytest.fixture
+def seeded_report(client):
+    """관리자 접근 제어 테스트용으로 신고 하나를 미리 넣고 그 id를 돌려준다.
+
+    신고자 두원기업 소속 박민수(축로공), 당사자 3명(count=3) — 마스킹/실명 분리
+    테스트가 기대하는 "박 ○○ 등 3명" / "박민수" 쌍의 원본이다.
+    """
+    resp = client.post(
+        "/api/reports",
+        json={
+            "client_uuid": "seed-1",
+            "content": "축로 작업 중 지지대가 흔들려 넘어질 뻔함",
+            "reporter_id": "dev-seed",
+            "reporter": {
+                "org": "두원기업",
+                "name": "박민수",
+                "role": "축로공",
+                "count": 3,
+            },
+        },
+    )
+    return resp.json()["id"]

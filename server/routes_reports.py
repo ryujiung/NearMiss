@@ -5,12 +5,14 @@ LLM 초안 생성은 이후 태스크(6)에서 붙는다.
 """
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from . import db as db_module
-from .models import ReportCreate, ReportOut
+from .auth import require_admin
+from .masking import format_identity, mask_name
+from .models import ReportCreate, ReporterOut, ReportOut
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -41,6 +43,50 @@ def _row_to_out(row: dict) -> ReportOut:
         draft=draft,
         content=row["content"],
     )
+
+
+def _masked_reporter_and_identity(row: dict) -> tuple[ReporterOut | None, str | None]:
+    """DB 행에서 마스킹된 reporter 블록과 identity_line을 만드는 단일 지점.
+
+    실명이 응답에 섞여 들어갈 수 있는 경로를 하나로 좁힌다 — 관리자 목록·상세
+    응답은 모두 이 함수를 거쳐야 하고, 이 함수는 절대 실명을 돌려주지 않는다.
+    실명이 필요한 유일한 응답(/identity)은 이 함수를 쓰지 않고 reporter_json을
+    직접 읽는다.
+    """
+    if not row.get("reporter_json"):
+        return None, None
+
+    reporter = json.loads(row["reporter_json"])
+    count = reporter.get("count", 1)
+    masked_reporter = ReporterOut(
+        org=reporter.get("org", ""),
+        name=mask_name(reporter.get("name", "")),
+        role=reporter.get("role", ""),
+        count=count,
+    )
+    identity_line = format_identity(reporter, count)
+    return masked_reporter, identity_line
+
+
+def _row_to_admin_out(row: dict) -> ReportOut:
+    """관리자 목록·상세 응답 직렬화. 원문은 포함하고 실명은 마스킹한다."""
+    out = _row_to_out(row)
+    out.reporter, out.identity_line = _masked_reporter_and_identity(row)
+    return out
+
+
+def _period_to_since(period: str | None) -> str | None:
+    """`period` 쿼리 파라미터를 `list_reports`의 `since` 하한으로 바꾼다.
+
+    week → 7일 전, month → 30일 전, 그 외(없음 포함)는 하한 없음.
+    """
+    if period == "week":
+        delta = timedelta(days=7)
+    elif period == "month":
+        delta = timedelta(days=30)
+    else:
+        return None
+    return (datetime.now(timezone.utc) - delta).isoformat()
 
 
 @router.post("", status_code=201)
@@ -79,3 +125,45 @@ def create_report(
 def get_my_reports(reporter_id: str, conn=Depends(get_db_conn)) -> list[ReportOut]:
     rows = db_module.list_reports(conn, reporter_id=reporter_id)
     return [_row_to_out(row) for row in rows]
+
+
+@router.get("", response_model=list[ReportOut], dependencies=[Depends(require_admin)])
+def list_all_reports(
+    risk: str | None = None,
+    status: str | None = None,
+    period: str | None = None,
+    conn=Depends(get_db_conn),
+) -> list[ReportOut]:
+    """관리자 목록 — 전체 신고, 원문 포함, 인적사항은 마스킹."""
+    since = _period_to_since(period)
+    rows = db_module.list_reports(conn, risk=risk, status=status, since=since)
+    return [_row_to_admin_out(row) for row in rows]
+
+
+@router.get(
+    "/{report_id}", response_model=ReportOut, dependencies=[Depends(require_admin)]
+)
+def get_report_detail(report_id: str, conn=Depends(get_db_conn)) -> ReportOut:
+    """관리자 속보 상세 — 목록과 같은 reporter·identity_line 모양."""
+    row = db_module.get_report(conn, report_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
+    return _row_to_admin_out(row)
+
+
+@router.get("/{report_id}/identity", dependencies=[Depends(require_admin)])
+def get_report_identity(report_id: str, conn=Depends(get_db_conn)) -> dict:
+    """실명이 내려가는 유일한 엔드포인트. 그 외 모든 응답은 마스킹된 값만 담는다."""
+    row = db_module.get_report(conn, report_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
+    if not row.get("reporter_json"):
+        raise HTTPException(status_code=404, detail="신고자 정보가 없습니다")
+
+    reporter = json.loads(row["reporter_json"])
+    return {
+        "org": reporter.get("org", ""),
+        "name": reporter.get("name", ""),
+        "role": reporter.get("role", ""),
+        "count": reporter.get("count", 1),
+    }
