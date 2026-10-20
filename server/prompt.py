@@ -15,6 +15,16 @@ from server.risk import RISK_CRITERIA, normalize_risk
 # 보내고, 응답을 받은 뒤 서버가 실명을 다시 끼워 넣는다(사양 3.4).
 IDENTITY_PLACEHOLDER = "[당사자]"
 
+# 원문에는 작업자가 말한 이름이 섞여 있을 수 있다(사양 3.4는 원문을 분석의 근거로
+# 보아 치환하지 않기로 했다). 모델이 그 이름을 생성 칸에 옮겨 적으면 저장·렌더까지
+# 흘러가 단일 마스킹 경로를 우회하므로, 프롬프트에서 명시적으로 금지한다.
+# 상수로 둔 이유: 문구는 다듬을 수 있어도 규칙이 프롬프트에서 사라지지는 않도록
+# 테스트가 이 상수의 존재를 고정한다.
+NAME_REDACTION_RULE = (
+    "- 신고 원문에 사람 이름이 섞여 있어도, 생성하는 어떤 칸에도 그 이름을 옮겨\n"
+    f"  적지 마세요. 사람을 가리켜야 할 때는 {IDENTITY_PLACEHOLDER}로 쓰세요."
+)
+
 # 사고 유형은 js/classify.js의 7종 + 기타를 그대로 쓴다. 프론트엔드가 같은
 # 어휘로 통계를 집계하므로, 한 글자라도 다르면 통계가 갈라진다.
 CATEGORIES = (
@@ -64,6 +74,7 @@ __CRITERIA__
   "(즉시)", 날짜가 필요한 조치는 "(~MM.DD.)".
 - 인적사항은 이미 __PLACEHOLDER__로 치환되어 있습니다. 실명이나 사번을 추측해서
   채우지 마세요.
+__NAME_RULE__
 - questions는 최대 2개입니다. 0개도 정상입니다. 질문은 장소·설비처럼 양식의 빈
   칸을 메우는 데에만 한정하세요. "더 자세히 말씀해주세요" 같은 열린 질문은
   금지합니다.
@@ -74,6 +85,7 @@ _SYSTEM_MESSAGE_BASE = (
     .replace("__CRITERIA__", RISK_CRITERIA)
     .replace("__CATEGORIES__", ", ".join(CATEGORIES))
     .replace("__PLACEHOLDER__", IDENTITY_PLACEHOLDER)
+    .replace("__NAME_RULE__", NAME_REDACTION_RULE)
 )
 
 
