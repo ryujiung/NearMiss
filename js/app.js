@@ -13,7 +13,6 @@
   const previewRoot = document.getElementById('report-preview-root');
   const previewEditButton = document.getElementById('preview-edit');
   const previewPdfButton = document.getElementById('preview-pdf');
-  const previewEmailLink = document.getElementById('preview-email');
   const previewGmailLink = document.getElementById('preview-gmail');
   const recipientInput = document.getElementById('recipient-input');
   const recipientList = document.getElementById('recipient-list');
@@ -35,13 +34,12 @@
   // ---------- 탭 ----------
   const tabButtons = document.querySelectorAll('.tabs [role="tab"]');
 
-  function updateEmailLink() {
+  function updateGmailLink() {
     const enabled = Boolean(pendingReport && recipients.length);
-    [previewEmailLink, previewGmailLink].forEach((link) => link.setAttribute('aria-disabled', String(!enabled)));
+    previewGmailLink.setAttribute('aria-disabled', String(!enabled));
     if (!enabled) {
-      previewEmailLink.removeAttribute('href');
       previewGmailLink.removeAttribute('href');
-      previewEmailLink.tabIndex = previewGmailLink.tabIndex = -1;
+      previewGmailLink.tabIndex = -1;
       return;
     }
 
@@ -57,8 +55,6 @@
       '신고 내용:',
       pendingReport.content,
     ].join('\n');
-    const encodedRecipients = recipients.map((email) => encodeURIComponent(email)).join(',');
-    previewEmailLink.href = `mailto:${encodedRecipients}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     const gmailParams = new URLSearchParams({
       view: 'cm',
       fs: '1',
@@ -67,7 +63,7 @@
       body,
     });
     previewGmailLink.href = `https://mail.google.com/mail/?${gmailParams.toString()}`;
-    previewEmailLink.tabIndex = previewGmailLink.tabIndex = 0;
+    previewGmailLink.tabIndex = 0;
   }
 
   function addRecipient(value) {
@@ -93,11 +89,11 @@
       removeButton.addEventListener('click', () => {
         recipients.splice(recipients.indexOf(email), 1);
         chip.remove();
-        updateEmailLink();
+        updateGmailLink();
       });
       chip.append(address, removeButton);
       recipientList.insertBefore(chip, recipientInput);
-      updateEmailLink();
+      updateGmailLink();
     }
     recipientError.hidden = true;
     return true;
@@ -211,7 +207,7 @@
     documentCard.append(contentTitle, contentBody);
     previewRoot.appendChild(documentCard);
     previewPdfButton.disabled = false;
-    updateEmailLink();
+    updateGmailLink();
   }
 
   // ---------- 음성 입력 ----------
@@ -293,8 +289,8 @@
     content.focus();
   });
 
-  [previewEmailLink, previewGmailLink].forEach((link) => link.addEventListener('click', (event) => {
-    if (link.getAttribute('aria-disabled') === 'true') {
+  previewGmailLink.addEventListener('click', (event) => {
+    if (previewGmailLink.getAttribute('aria-disabled') === 'true') {
       event.preventDefault();
       if (!pendingReport) toast('먼저 신고 내용을 입력하고 미리보기를 생성해 주세요.');
       else {
@@ -308,8 +304,8 @@
       recipientInput.focus();
       return;
     }
-    updateEmailLink();
-  }));
+    updateGmailLink();
+  });
 
   previewPdfButton.addEventListener('click', () => {
     if (!pendingReport) {

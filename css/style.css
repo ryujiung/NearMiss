@@ -330,7 +330,6 @@ textarea.voice-active { border-color: var(--danger); background: #fffafa; }
   text-decoration: none;
   font-size: 0.95rem;
 }
-.preview-actions .btn-secondary.btn-email { margin: 0; }
 .btn-email[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
 
 @media (max-width: 420px) {
