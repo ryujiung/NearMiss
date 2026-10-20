@@ -9,12 +9,24 @@
 </head>
 <body>
   <header class="app-header">
+    <div class="brand-row">
+      <span class="posco-wordmark" aria-label="POSCO">POSCO</span>
+      <span class="brand-divider" aria-hidden="true"></span>
+      <span class="safety-tag">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 3.5 22 20.5H2L12 3.5Z" fill="currentColor" />
+          <path d="M12 9v5.5M12 17.5v.1" stroke="#1f4e8c" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        <span>위험을 발견하면 바로 공유하세요</span>
+      </span>
+    </div>
     <h1>니어미스 신고</h1>
     <p class="subtitle">아차사고를 공유하면 큰 사고를 막을 수 있습니다</p>
   </header>
 
   <nav class="tabs" role="tablist">
     <button type="button" role="tab" id="tab-btn-report" data-tab="report" aria-controls="tab-report" aria-selected="true">신고하기</button>
+    <button type="button" role="tab" id="tab-btn-preview" data-tab="preview" aria-controls="tab-preview" aria-selected="false">보고서 미리보기</button>
     <button type="button" role="tab" id="tab-btn-stats" data-tab="stats" aria-controls="tab-stats" aria-selected="false">통계</button>
   </nav>
 
@@ -52,6 +64,31 @@
 
   <main class="container" id="tab-stats" role="tabpanel" aria-labelledby="tab-btn-stats" hidden>
     <div id="stats-root"></div>
+  </main>
+
+  <main class="container" id="tab-preview" role="tabpanel" aria-labelledby="tab-btn-preview" hidden>
+    <section class="report-preview">
+      <h2>보고서 미리보기</h2>
+      <p class="preview-description">입력한 신고 내용을 보고서 형식으로 정리했습니다. 접수 전에 내용을 확인해 주세요.</p>
+      <button type="button" id="load-report-example" class="btn-secondary example-button">예시 내용으로 보고서 만들기</button>
+      <div class="recipient-section">
+        <label for="recipient-input" class="main-label">받는 사람</label>
+        <div id="recipient-list" class="recipient-list" role="group" aria-label="이메일 수신자">
+          <input id="recipient-input" type="email" autocomplete="email" placeholder="이메일 주소 입력 후 Enter" />
+        </div>
+        <p class="recipient-help">여러 명은 주소를 입력하고 Enter를 눌러 추가하세요. 메일 작성 화면에서 내용을 확인한 뒤 직접 보내야 합니다.</p>
+        <p id="recipient-error" class="recipient-error" role="alert" hidden></p>
+      </div>
+      <div id="report-preview-root" aria-live="polite">
+        <p class="empty-state">신고 내용을 입력하고 미리보기를 생성해 주세요.</p>
+      </div>
+      <div class="preview-actions">
+        <button type="button" id="preview-edit" class="btn-secondary">수정하기</button>
+        <button type="button" id="preview-pdf" class="btn-secondary" disabled>이 PC에 PDF로 저장</button>
+        <a id="preview-email" class="btn-secondary btn-email" aria-disabled="true">기본 메일 앱</a>
+        <a id="preview-gmail" class="btn-submit btn-email" aria-disabled="true" target="_blank" rel="noopener noreferrer">Gmail에서 작성</a>
+      </div>
+    </section>
   </main>
 
   <div id="toast" class="toast" role="alert" hidden></div>
