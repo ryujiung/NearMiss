@@ -1,0 +1,16 @@
+# 브레인스토밍 목업 (설계 과정 산출물)
+.superpowers/
+
+# 환경변수 — 사내 API 키가 들어감
+.env
+
+# 로컬 DB
+*.sqlite
+*.sqlite3
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
