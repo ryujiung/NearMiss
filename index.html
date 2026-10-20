@@ -48,6 +48,26 @@
       <h2>내 신고 내역</h2>
       <ul id="history-list"></ul>
     </section>
+
+    <details class="card settings" id="settings">
+      <summary>내 정보 · 설정</summary>
+      <p class="card-sub">한 번만 입력하면 이후 신고마다 자동으로 들어갑니다.</p>
+
+      <label for="profile-org">소속</label>
+      <input type="text" id="profile-org" autocomplete="organization" placeholder="예) 두원기업" />
+
+      <label for="profile-name">성명</label>
+      <input type="text" id="profile-name" autocomplete="name" placeholder="예) 박민수" />
+      <p class="field-hint">보고서에는 <strong>박 ○○</strong> 처럼 가려서 나갑니다. 실명은 관리자만 볼 수 있습니다.</p>
+
+      <label for="profile-role">직무</label>
+      <input type="text" id="profile-role" placeholder="예) 축로공" />
+
+      <label for="admin-token">관리자 토큰 <span class="field-note">(관리자만)</span></label>
+      <input type="password" id="admin-token" autocomplete="off" placeholder="관리자 탭을 쓰려면 입력" />
+
+      <button type="button" id="save-settings" class="btn-secondary">저장</button>
+    </details>
   </main>
 
   <main class="container" id="tab-stats" role="tabpanel" aria-labelledby="tab-btn-stats" hidden>
@@ -56,6 +76,7 @@
 
   <div id="toast" class="toast" role="alert" hidden></div>
 
+  <script src="js/profile.js"></script>
   <script src="js/store.js"></script>
   <script src="js/classify.js"></script>
   <script src="js/stats.js"></script>

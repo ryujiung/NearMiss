@@ -97,11 +97,15 @@
     };
 
     try {
-      await ReportStore.submit(report);
-      renderHistory();
+      const result = await ReportStore.submit(report);
       form.reset();
+      await renderHistory();
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      toast('신고가 접수되었습니다. 감사합니다!');
+      toast(
+        result.queued
+          ? '지금은 연결이 안 되어 저장해 두었습니다. 연결되면 자동으로 전송됩니다.'
+          : '신고가 접수되었습니다. 감사합니다!'
+      );
     } catch (err) {
       console.error(err);
       toast('전송에 실패했습니다. 잠시 후 다시 시도해 주세요.');
@@ -115,8 +119,18 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
-  function renderHistory() {
-    const list = ReportStore.myReports();
+  // 상태별 표시 — 색만으로 구분하지 않고 글자를 함께 둔다
+  const STATUS_LABEL = {
+    pending: '전송 대기 중',
+    draft: '분석 대기',
+    analyzing: '분석 중',
+    ready: '확인 필요',
+    failed: '분석 실패',
+    submitted: '제출됨',
+  };
+
+  async function renderHistory() {
+    const list = await ReportStore.myReports();
     historyList.innerHTML = '';
     if (!list.length) {
       historyList.innerHTML = '<li class="empty">아직 신고 내역이 없습니다.</li>';
@@ -124,17 +138,67 @@
     }
     list.forEach((r) => {
       const li = document.createElement('li');
+
       const meta = document.createElement('div');
       meta.className = 'meta';
-      meta.textContent = formatDate(r.createdAt);
+      // 서버 레코드는 created_at, 이전 버전 로컬 레코드는 createdAt
+      meta.textContent = formatDate(r.created_at || r.createdAt);
+
+      const status = r.status || 'submitted';
+      const badge = document.createElement('span');
+      badge.className = `status-badge status-${status}`;
+      badge.textContent = STATUS_LABEL[status] || status;
+      meta.append(badge);
+
       const body = document.createElement('div');
       // 이전 버전(여러 칸 입력)으로 저장된 내역도 표시
       body.textContent = r.content || r.description || '';
+
       li.append(meta, body);
       historyList.appendChild(li);
     });
   }
 
+  // ---------- 설정 (내 정보 · 관리자 토큰) ----------
+  const settingsFields = {
+    org: document.getElementById('profile-org'),
+    name: document.getElementById('profile-name'),
+    role: document.getElementById('profile-role'),
+  };
+  const adminTokenField = document.getElementById('admin-token');
+
+  function loadSettings() {
+    const profile = Profile.get() || {};
+    Object.entries(settingsFields).forEach(([key, field]) => {
+      field.value = profile[key] || '';
+    });
+    adminTokenField.value = Profile.adminToken();
+  }
+
+  document.getElementById('save-settings').addEventListener('click', () => {
+    Profile.save({
+      org: settingsFields.org.value,
+      name: settingsFields.name.value,
+      role: settingsFields.role.value,
+    });
+    Profile.saveAdminToken(adminTokenField.value);
+    toast('저장했습니다.');
+  });
+
+  // ---------- 오프라인 큐 ----------
+  async function flushPending() {
+    if (!ReportStore.pendingCount()) return;
+    const sent = await ReportStore.flushQueue();
+    if (sent > 0) {
+      toast(`전송 대기 중이던 신고 ${sent}건을 보냈습니다.`);
+      renderHistory();
+    }
+  }
+
+  window.addEventListener('online', flushPending);
+
+  loadSettings();
   renderHistory();
+  flushPending();
   showTab(location.hash === '#stats' ? 'stats' : 'report');
 })();
