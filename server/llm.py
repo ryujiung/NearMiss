@@ -1,7 +1,8 @@
 """LLM 프로바이더 — 사내 GPT API 호출과 mock 모드.
 
-사내 API는 OpenAI 호환(`/v1/chat/completions`)으로 가정하고, 인증은
-`Authorization: Bearer`를 쓴다. base URL·모델명·키는 모두 환경변수에서 온다.
+OpenAI 호환 API를 가정하고, 인증은 `Authorization: Bearer`를 쓴다. base URL·
+경로·모델명·키는 모두 환경변수에서 온다 — 호환 API라도 경로 배치가 제각각이라
+(예: Gemini는 `/v1beta/openai/chat/completions`) 경로를 박아두면 안 된다.
 
 mock 모드(`NEARMISS_LLM_MODE=mock`)는 1급 경로다. 테스트에 필요하고, 사내망
 밖에서 화면을 만들 때도 쓰고, 데모 중 API가 죽었을 때의 비상용이기도 하다.
@@ -44,9 +45,10 @@ class LiveProvider:
         self.api_key = settings.api_key
         self.model = settings.model
         self.timeout = settings.request_timeout
+        self.chat_path = "/" + settings.chat_path.lstrip("/")
 
     async def complete(self, messages: list[dict]) -> str:
-        url = f"{self.base_url}/v1/chat/completions"
+        url = f"{self.base_url}{self.chat_path}"
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(

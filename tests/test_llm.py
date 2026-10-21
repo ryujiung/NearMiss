@@ -61,6 +61,32 @@ async def test_live_provider_posts_to_chat_completions_under_base_url(httpx_mock
 
 
 @pytest.mark.asyncio
+async def test_live_provider_uses_configurable_chat_path(httpx_mock):
+    # OpenAI 호환이라도 경로 배치가 제각각이다. Gemini의 호환 엔드포인트는
+    # /v1beta/openai/chat/completions 로 /v1 조각이 없어서, 경로를 박아두면
+    # base URL만 바꿔서는 맞출 수 없다.
+    httpx_mock.add_response(json={"choices": [{"message": {"content": "{}"}}]})
+    await LiveProvider(
+        settings(
+            api_base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            chat_path="/chat/completions",
+        )
+    ).complete([])
+    assert str(httpx_mock.get_request().url) == (
+        "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    )
+
+
+@pytest.mark.asyncio
+async def test_live_provider_chat_path_defaults_to_openai_layout(httpx_mock):
+    httpx_mock.add_response(json={"choices": [{"message": {"content": "{}"}}]})
+    await LiveProvider(settings(api_base_url="https://api.example.invalid")).complete([])
+    assert str(httpx_mock.get_request().url) == (
+        "https://api.example.invalid/v1/chat/completions"
+    )
+
+
+@pytest.mark.asyncio
 async def test_live_provider_returns_message_content(httpx_mock):
     httpx_mock.add_response(json={"choices": [{"message": {"content": "본문"}}]})
     assert await LiveProvider(settings()).complete([]) == "본문"

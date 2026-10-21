@@ -26,6 +26,32 @@
 
    `NEARMISS_DB_PATH`를 비워두면 저장소 루트의 `nearmiss.db`를 기본값으로 사용합니다.
 
+   **LLM은 Gemini 무료 등급으로 붙일 수 있습니다** (Google 계정만 있으면 되고 결제수단이
+   필요 없습니다). 키는 https://aistudio.google.com/apikey 에서 발급받고, `.env`에 이렇게
+   넣습니다:
+
+   ```
+   NEARMISS_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+   NEARMISS_CHAT_PATH=/chat/completions
+   NEARMISS_MODEL=gemini-2.0-flash
+   NEARMISS_API_KEY=<발급받은 키>
+   ```
+
+   넣은 뒤 실제로 쓸 만한 속보가 돌아오는지 확인합니다 — 연결만 보는 게 아니라
+   **실제 프롬프트를 던져** 파서를 통과하는지까지 봅니다:
+
+   ```bash
+   python -m scripts.check_llm                 # .env 설정 그대로
+   python -m scripts.check_llm --try-models    # 모델명을 모를 때 후보를 차례로
+   ```
+
+   키가 없어도 `NEARMISS_LLM_MODE=mock`으로 전체 흐름이 돌아갑니다. 단 mock은 입력과
+   무관하게 고정된 속보를 돌려주므로, 데모에서 "AI가 내 말을 이해한다"는 장면은
+   나오지 않습니다.
+
+   > 무료 등급은 보낸 데이터를 모델 개선에 쓸 수 있습니다. 데모용 합성 데이터는
+   > 괜찮지만, 실제 현장 신고를 넣기 전에는 다시 판단해야 합니다.
+
 4. 데모 데이터 넣기 (선택, 하지만 권장)
 
    ```bash
