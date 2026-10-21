@@ -166,6 +166,27 @@
       body.textContent = r.content || r.description || '';
 
       li.append(meta, body);
+
+      // 제출 전 건은 눌러서 초안 화면으로 돌아간다(사양 3.8). 이 경로가 없으면
+      // 새로고침하거나 '나중에 하기'를 누른 신고, 오프라인 큐에서 올라온 신고가
+      // 영구 미제출로 남아 통계·관리자 큐 어디에도 도달하지 않는다.
+      if (r.id && status !== 'submitted' && status !== 'pending') {
+        li.classList.add('history-resumable');
+        const resume = document.createElement('button');
+        resume.type = 'button';
+        resume.className = 'btn-resume';
+        resume.textContent = status === 'failed' ? '다시 분석하고 제출' : '이어서 제출';
+        resume.addEventListener('click', () => {
+          DraftView.open(r.id, {
+            onClose: async (outcome) => {
+              await renderHistory();
+              if (outcome.submitted) toast('신고가 접수되었습니다. 감사합니다!');
+            },
+          });
+        });
+        li.append(resume);
+      }
+
       historyList.appendChild(li);
     });
   }

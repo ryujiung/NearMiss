@@ -157,16 +157,21 @@ def _extract_json_text(text: str) -> str:
 
     처리하는 포장 형태:
     - 순수 JSON 객체 그대로
-    - ```json ... ``` / ``` ... ``` 코드펜스로 감싸인 경우
+    - ```json ... ``` / ``` ... ``` 코드펜스 **하나**로 감싸인 경우
     - 앞뒤에 설명 문장이 붙은 경우 (첫 '{'부터 마지막 '}'까지를 취한다)
 
     이 세 가지 외의 입력(JSON 자체가 없는 문장 등)은 복원하지 않는다 — 문자를
     더 벗겨내는 식의 "똑똑한" 복구는 그럴듯하지만 틀린 보고서를 만들 위험이
     있으므로 여기서 멈춘다.
     """
-    fence_match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
-    if fence_match:
-        text = fence_match.group(1)
+    # 펜스가 둘 이상이면 복원하지 않는다. 첫 블록을 취하면 모델이 예시를 먼저
+    # 쓴 경우 "그럴듯하지만 틀린" 속보가 되고, 그게 이 파서가 피하려는 유일한
+    # 실패 모드다. 어느 블록이 본문인지 추측하지 않고 깨끗하게 실패한다.
+    fences = re.findall(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
+    if len(fences) > 1:
+        raise DraftParseError("코드펜스가 여러 개라 어느 쪽이 본문인지 알 수 없습니다.")
+    if fences:
+        text = fences[0]
 
     start = text.find("{")
     end = text.rfind("}")

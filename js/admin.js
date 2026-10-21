@@ -12,10 +12,13 @@
 (function (global) {
   'use strict';
 
+  // 막힌 신고를 찾는 두 축. 하나로 합치면 배지가 거짓말을 한다 —
+  // risk가 있는데 제출 전인 건은 '분류 안 됨'이 아니라 '제출 전'이다.
   const STATUS_FILTERS = [
     ['', '전체'],
     ['submitted', '제출됨'],
-    ['failed', '미분류'],
+    ['unclassified', '미분류'],
+    ['unsubmitted', '제출 전'],
   ];
   const RISK_FILTERS = [['', '전체'], ['상', '상'], ['중', '중'], ['하', '하']];
   const PERIOD_FILTERS = [['', '전체 기간'], ['week', '최근 7일'], ['month', '최근 30일']];
@@ -35,14 +38,19 @@
   }
 
   async function api(path) {
-    const res = await fetch(path, { headers: Profile.adminHeaders() });
+    const res = await fetch(path, {
+      headers: { ...Profile.ownerHeaders(), ...Profile.adminHeaders() },
+    });
     if (res.status === 401) throw new Error('unauthorized');
     if (!res.ok) throw new Error(`요청 실패: ${res.status}`);
     return res.json();
   }
 
   async function post(path) {
-    const res = await fetch(path, { method: 'POST', headers: Profile.adminHeaders() });
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { ...Profile.ownerHeaders(), ...Profile.adminHeaders() },
+    });
     if (!res.ok) throw new Error(`요청 실패: ${res.status}`);
     return res.json().catch(() => ({}));
   }
@@ -130,8 +138,28 @@
 
   // ---------- 목록 ----------
 
+  /** AI가 위험도를 못 붙인 건 — 분석이 실패했거나 빈 응답이었다.
+   *
+   * failed만 잡으면 draft로 멈춘 건, analyzing에서 끊긴 건, 파싱은 됐지만
+   * risk가 없는 건이 필터와 '다시 분석' 버튼에서 빠진다. 그러면 "막힌 신고가
+   * 사실상 사라지는 것"을 막으려고 둔 상태 축이 목적을 잃는다(사양 3.8).
+   */
+  function isUnclassified(report) {
+    return !report.risk;
+  }
+
+  /** 분류는 됐지만 작업자가 아직 제출하지 않은 건.
+   *
+   * 미분류와 섞지 않는다 — AI가 위험도를 붙였는데 '미분류' 배지를 띄우면
+   * 화면이 거짓말을 한다. 둘 다 관리자에게 도달하지 못한 건이지만 필요한
+   * 조치가 다르다(전자는 재분석, 후자는 작업자 독촉).
+   */
+  function isUnsubmitted(report) {
+    return !!report.risk && report.status !== 'submitted';
+  }
+
   function riskCell(report) {
-    if (report.status === 'failed' || !report.risk) {
+    if (isUnclassified(report)) {
       const badge = el('span', 'risk-badge risk-none', '미분류');
       return badge;
     }
@@ -142,6 +170,9 @@
     const row = el('li', 'admin-row');
     const head = el('div', 'admin-row-head');
     head.append(riskCell(report));
+    if (isUnsubmitted(report)) {
+      head.append(el('span', 'status-badge status-ready', '제출 전'));
+    }
     if (report.category) head.append(el('span', 'doc-category', report.category));
     head.append(el('span', 'admin-when', formatWhen(report.created_at)));
     row.append(head);
@@ -157,7 +188,7 @@
     open.addEventListener('click', () => onOpen(report.id));
     actions.append(open);
 
-    if (report.status === 'failed') {
+    if (isUnclassified(report)) {
       const retry = el('button', 'btn-row btn-row-warn', '다시 분석');
       retry.type = 'button';
       retry.addEventListener('click', async () => {
@@ -306,10 +337,19 @@
 
       const params = new URLSearchParams();
       if (filters.risk) params.set('risk', filters.risk);
-      if (filters.status) params.set('status', filters.status);
+      // '미분류'는 여러 상태를 아우르므로 서버 필터가 아니라 화면에서 고른다.
+      // '미분류'·'제출 전'은 여러 상태를 아우르므로 서버 필터가 아니라 화면에서 고른다.
+      if (filters.status && !['unclassified', 'unsubmitted'].includes(filters.status)) {
+        params.set('status', filters.status);
+      }
       if (filters.period) params.set('period', filters.period);
       const query = params.toString() ? `?${params}` : '';
-      const reports = await api(`/api/reports${query}`);
+      let reports = await api(`/api/reports${query}`);
+      if (filters.status === 'unclassified') {
+        reports = reports.filter(isUnclassified);
+      } else if (filters.status === 'unsubmitted') {
+        reports = reports.filter(isUnsubmitted);
+      }
 
       const count = el('p', 'admin-count', `${reports.length}건`);
       container.append(count);

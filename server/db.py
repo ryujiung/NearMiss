@@ -6,19 +6,9 @@ content를 잃지 않는다. client_uuid UNIQUE 제약으로 재전송(멱등 �
 import sqlite3
 from datetime import datetime, timezone
 
-_db_path: str | None = None
-
 
 def init_db(path: str) -> None:
-    """주어진 경로에 스키마를 준비한다(이미 있으면 그대로 둠).
-
-    전역 상태는 이 경로를 기억해 두는 용도로만 쓴다(인자 없이 get_conn()을 호출하는
-    단순한 단일 프로세스 사용을 위한 기본값). 앱 단위 격리가 필요한 호출(API 라우트 등)은
-    항상 명시적으로 경로를 넘겨 get_conn(path)를 써야 한다 — 전역에 의존하면 같은
-    프로세스에 여러 앱(예: 테스트의 여러 TestClient)이 떠 있을 때 서로의 DB를 덮어써 버린다.
-    """
-    global _db_path
-    _db_path = path
+    """주어진 경로에 스키마를 준비한다(이미 있으면 그대로 둠)."""
     conn = get_conn(path)
     try:
         conn.execute(
@@ -94,17 +84,14 @@ def _add_missing_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE reports ADD COLUMN {name} {coltype}")
 
 
-def get_conn(path: str | None = None) -> sqlite3.Connection:
-    """새 커넥션을 연다.
+def get_conn(path: str) -> sqlite3.Connection:
+    """새 커넥션을 연다. 경로는 필수다.
 
-    path를 명시하면 그 경로로 연결한다(앱/요청마다 독립된 DB를 보장하려면 항상 이렇게 쓴다).
-    생략하면 가장 마지막에 init_db가 설정한 경로로 연결한다 — 앱이 하나뿐인 단순한
-    상황(스크립트 등)을 위한 편의 기본값일 뿐, 여러 앱이 공존하는 경우엔 쓰지 않는다.
+    전역 폴백을 두지 않는다 — "마지막에 init_db가 설정한 경로"에 의존하면 같은
+    프로세스에 앱이 여러 개 떠 있을 때 서로의 DB를 덮어쓴다. 그 결함을 한 번
+    고쳤으므로, 인자를 필수로 만들어 다시 생길 수 없게 한다.
     """
-    resolved = path if path is not None else _db_path
-    if resolved is None:
-        raise RuntimeError("init_db를 먼저 호출해야 합니다")
-    conn = sqlite3.connect(resolved)
+    conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     return conn
 

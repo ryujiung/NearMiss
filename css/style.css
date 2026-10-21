@@ -773,3 +773,17 @@ body.draft-open { overflow: hidden; }
   color: var(--muted);
   text-align: center;
 }
+
+.history-resumable { border-left: 3px solid var(--primary); }
+.btn-resume {
+  margin-top: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--primary);
+  background: #fff;
+  color: var(--primary);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}

@@ -74,4 +74,28 @@
 
 6. 브라우저에서 `http://localhost:8000` 접속
 
+## 테스트
+
+서버는 pytest로 자동 테스트합니다.
+
+```bash
+python -m pytest          # 176개
+```
+
+프론트엔드는 사양 4의 결정에 따라 자동 테스트 대신 **수동 하네스**로 확인합니다.
+jsdom으로 실제 모듈을 실제 서버에 붙여 돌립니다 — 브라우저가 필요 없습니다.
+
+```bash
+npm install jsdom                                  # 한 번만
+python -m server.seed && uvicorn server.main:app   # 다른 창에서
+node tests/manual/check-store.mjs       # 프로필·오프라인 큐·멱등 재전송
+node tests/manual/check-briefdoc.mjs    # 속보 문서 렌더러
+node tests/manual/check-draftview.mjs   # 초안 화면 전체 흐름
+node tests/manual/check-stats.mjs       # 통계 탭
+node tests/manual/check-admin.mjs       # 관리자 탭
+```
+
+기계로 확인되지 않는 것은 **인쇄 CSS(`Cmd+P`)와 375px 반응형**뿐입니다. 둘 다
+실제 브라우저로 봐야 합니다.
+
 > **데모는 노트북 브라우저의 모바일 뷰(개발자 도구 반응형 모드)로 진행합니다.** 실기기에서 `http://192.168.x.x`로 접속하면 브라우저가 비보안(non-HTTPS) origin으로 판단해 음성 입력·카메라 권한이 차단되기 때문입니다.

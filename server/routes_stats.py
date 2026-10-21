@@ -10,6 +10,7 @@
 `submitted` 상태만 집계한다. 아직 확인 전인 초안이나 분석 실패 건이 통계에
 들어가면 "제출된 신고 건수"라는 수치의 뜻이 흐려진다(사양 3.8).
 """
+import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -17,6 +18,8 @@ from fastapi import APIRouter, Depends, Request
 
 from .risk import RISK_LEVELS
 from .routes_reports import get_db_conn
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["stats"])
 
@@ -26,9 +29,17 @@ HOUR_BIN = 3  # js/stats.js의 HOUR_BIN과 같아야 한다
 _PERIOD_DAYS = {"week": 7, "month": 30}
 
 
-def _parse(value: str) -> datetime:
-    """저장된 ISO 문자열을 aware datetime으로 읽는다."""
-    parsed = datetime.fromisoformat(value)
+def _parse(value: str) -> datetime | None:
+    """저장된 ISO 문자열을 aware datetime으로 읽는다. 못 읽으면 None.
+
+    한 행이 깨졌다고 통계 탭 전체가 죽어서는 안 된다 — 그 행이 남아 있는 동안
+    모든 사용자의 화면이 멈춘다. 깨진 행만 집계에서 빠진다.
+    """
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        logger.warning("집계에서 건너뛴 행 — 읽을 수 없는 created_at: %r", value)
+        return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed
@@ -54,15 +65,19 @@ def get_stats(
     rows = conn.execute(
         "SELECT created_at, risk, category FROM reports WHERE status = 'submitted'"
     ).fetchall()
-    records = [
-        {
-            "at": _parse(row["created_at"]),
-            "local": _parse(row["created_at"]).astimezone(site_tz),
-            "risk": row["risk"],
-            "category": row["category"],
-        }
-        for row in rows
-    ]
+    records = []
+    for row in rows:
+        at = _parse(row["created_at"])
+        if at is None:
+            continue
+        records.append(
+            {
+                "at": at,
+                "local": at.astimezone(site_tz),
+                "risk": row["risk"],
+                "category": row["category"],
+            }
+        )
 
     window_days = _PERIOD_DAYS.get(period or "")
     if window_days is not None:
@@ -71,9 +86,13 @@ def get_stats(
     else:
         scoped = records
 
-    def count_since(days: int) -> int:
-        since = now - timedelta(days=days)
-        return sum(1 for r in records if r["at"] >= since)
+    # '이번 주'·'이번 달'은 달력 경계다 — 롤링 7/30일로 세면 매달 2일에
+    # "이번 달"이 지난달 건을 포함해 레이블과 뜻이 어긋난다.
+    week_start = today - timedelta(days=today.weekday())  # 월요일 시작
+    month_start = today.replace(day=1)
+
+    def count_from(start_date) -> int:
+        return sum(1 for r in records if r["local"].date() >= start_date)
 
     daily_counts: dict[str, int] = {}
     for record in scoped:
@@ -117,8 +136,8 @@ def get_stats(
     return {
         "total": len(scoped),
         "today": sum(1 for r in records if r["local"].date() == today),
-        "week": count_since(7),
-        "month": count_since(30),
+        "week": count_from(week_start),
+        "month": count_from(month_start),
         "daily": daily,
         "category": category,
         "hourly": hourly,

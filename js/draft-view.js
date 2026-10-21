@@ -34,7 +34,9 @@
 
   async function fetchDraft(reportId) {
     const params = new URLSearchParams({ reporter_id: Profile.reporterId() });
-    const res = await fetch(`/api/reports/${reportId}/draft?${params}`);
+    const res = await fetch(`/api/reports/${reportId}/draft?${params}`, {
+      headers: Profile.ownerHeaders(),
+    });
     if (!res.ok) throw new Error(`초안 조회 실패: ${res.status}`);
     return res.json();
   }
@@ -84,7 +86,7 @@
     try {
       await fetch(`/api/reports/${id}/draft`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...Profile.ownerHeaders() },
         body: JSON.stringify({ answers: { [question]: value } }),
       });
       startPolling();
@@ -100,7 +102,7 @@
     try {
       await fetch(`/api/reports/${state.reportId}/draft`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...Profile.ownerHeaders() },
         body: JSON.stringify({ fields: { [name]: value } }),
       });
       // 서버가 기억한 값을 화면 상태에도 반영해 둔다 — 재생성 때 잠길 칸이다.
@@ -142,6 +144,7 @@
       try {
         const res = await fetch(`/api/reports/${state.reportId}/photos`, {
           method: 'POST',
+          headers: Profile.ownerHeaders(),
           body,
         });
         if (!res.ok) {
@@ -283,7 +286,10 @@
 
   async function requestDraft() {
     try {
-      await fetch(`/api/reports/${state.reportId}/draft`, { method: 'POST' });
+      await fetch(`/api/reports/${state.reportId}/draft`, {
+        method: 'POST',
+        headers: Profile.ownerHeaders(),
+      });
       startPolling();
     } catch (err) {
       console.error(err);
@@ -296,7 +302,10 @@
   async function finalSubmit() {
     const id = state.reportId;
     try {
-      const res = await fetch(`/api/reports/${id}/submit`, { method: 'POST' });
+      const res = await fetch(`/api/reports/${id}/submit`, {
+        method: 'POST',
+        headers: Profile.ownerHeaders(),
+      });
       if (!res.ok) throw new Error(`제출 실패: ${res.status}`);
       DraftView.close({ submitted: true });
     } catch (err) {

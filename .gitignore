@@ -23,3 +23,7 @@ venv/
 
 # 업로드된 사진 (기본 저장 경로)
 server/data/
+
+# 수동 하네스용 (tests/manual — npm install jsdom)
+node_modules
+package-lock.json

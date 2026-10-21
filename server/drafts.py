@@ -20,7 +20,12 @@ from zoneinfo import ZoneInfo
 from . import db as db_module
 from .config import Settings
 from .llm import LLMError, get_provider
-from .prompt import DraftParseError, build_draft_prompt, parse_draft_response
+from .prompt import (
+    IDENTITY_PLACEHOLDER,
+    DraftParseError,
+    build_draft_prompt,
+    parse_draft_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +33,46 @@ logger = logging.getLogger(__name__)
 # (HTTP 오류·타임아웃)는 즉시 재시도해도 나아지지 않으므로 재시도하지 않는다 —
 # 그 경우의 재시도는 사용자·관리자의 '다시 분석' 버튼이다(사양 3.8).
 _PARSE_RETRIES = 1
+
+# 제출 이후에는 상태를 되돌리지 않는다. 작업자가 '분석 중'에 제출하는 것은
+# 정상 경로(사양은 어떤 상태에서도 제출을 막지 않는다)이고, 실제 응답이
+# 10초대이므로 모든 신고에 그만큼의 창이 열린다. 상태를 덮으면 작업자는
+# "접수되었습니다"를 보지만 관리자 큐·웹훅·통계에는 아무것도 가지 않는다.
+_TERMINAL_STATUSES = ("submitted",)
+
+
+def is_draft_empty(draft: dict) -> bool:
+    """파싱은 됐지만 쓸 내용이 없는 응답인지 본다.
+
+    빈 초안을 ready로 두면 전 칸 '미기재'인 "완료된" 속보가 뜨고, failed가
+    아니므로 '다시 분석' 버튼이 나오지 않는다. 안전 문서에서 실패를 실패로
+    알리지 않는 것이 더 나쁘다.
+    """
+    if not draft.get("risk"):
+        return True
+    has_narrative = bool(draft.get("overview")) or any(
+        draft.get("causes", {}).values()
+    )
+    return not has_narrative
+
+
+def strip_placeholder(draft: dict) -> dict:
+    """생성된 칸에 남은 자리표시자를 보통명사로 바꾼다.
+
+    프롬프트로 금지했지만 지시만으로 믿지 않는다 — 서버가 되돌려 넣지 않는
+    설계이므로 한 번 새면 저장·렌더·인쇄까지 직행한다. 잠긴 칸을 서버에서
+    강제하는 것과 같은 이유다.
+    """
+    def clean(value):
+        if isinstance(value, str):
+            return value.replace(IDENTITY_PLACEHOLDER, "작업자")
+        if isinstance(value, list):
+            return [clean(v) for v in value]
+        if isinstance(value, dict):
+            return {k: clean(v) for k, v in value.items()}
+        return value
+
+    return {key: clean(value) for key, value in draft.items()}
 
 
 async def _ask_model(provider, messages) -> dict:
@@ -69,6 +114,19 @@ def mark_sources(draft: dict, locked: dict) -> dict:
     return draft
 
 
+def _finish(conn, report_id: str, fields: dict, next_status: str) -> None:
+    """초안 내용은 항상 쓰고, 상태는 되돌릴 수 있을 때만 쓴다.
+
+    이미 제출된 건에 재분석이 돌면(관리자 '다시 분석', 열린 초안 화면의 재시도)
+    초안은 갱신돼야 하지만 submitted가 ready/analyzing으로 내려가서는 안 된다.
+    """
+    row = db_module.get_report(conn, report_id)
+    updates = dict(fields)
+    if row is None or row["status"] not in _TERMINAL_STATUSES:
+        updates["status"] = next_status
+    db_module.update_report(conn, report_id, updates)
+
+
 async def run_draft_job(
     report_id: str, settings: Settings, *, answers: dict | None = None
 ) -> None:
@@ -87,9 +145,7 @@ async def run_draft_job(
             logger.warning("초안 생성 대상 신고가 없습니다: %s", report_id)
             return
 
-        db_module.update_report(
-            conn, report_id, {"status": "analyzing", "draft_error": None}
-        )
+        _finish(conn, report_id, {"draft_error": None}, "analyzing")
 
         previous = json.loads(row["draft_json"]) if row.get("draft_json") else None
         locked = locked_fields(previous)
@@ -109,8 +165,17 @@ async def run_draft_job(
         try:
             draft = await _ask_model(get_provider(settings), messages)
         except (LLMError, DraftParseError) as exc:
-            db_module.update_report(
-                conn, report_id, {"status": "failed", "draft_error": str(exc)}
+            _finish(conn, report_id, {"draft_error": str(exc)}, "failed")
+            return
+
+        draft = strip_placeholder(draft)
+
+        if is_draft_empty(draft):
+            _finish(
+                conn,
+                report_id,
+                {"draft_error": "모델이 빈 속보를 돌려주었습니다."},
+                "failed",
             )
             return
 
@@ -119,7 +184,7 @@ async def run_draft_job(
         draft.update(locked)
         mark_sources(draft, locked)
 
-        db_module.update_report(
+        _finish(
             conn,
             report_id,
             {
@@ -127,9 +192,9 @@ async def run_draft_job(
                 "risk": draft.get("risk"),
                 "risk_reason": draft.get("risk_reason"),
                 "category": draft.get("category"),
-                "status": "ready",
                 "draft_error": None,
             },
+            "ready",
         )
     finally:
         conn.close()

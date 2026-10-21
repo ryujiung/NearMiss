@@ -86,6 +86,15 @@
       write(KEY_ADMIN, (token || '').trim());
     },
 
+    /** 모든 요청에 붙일 기기 식별 헤더.
+
+     * 인증이 아니라 "누구 건인가"를 가리는 값이다. 서버가 자기 건이 아닌 신고의
+     * 수정·제출·사진 업로드를 막는 데 쓴다.
+     */
+    ownerHeaders() {
+      return { 'X-Reporter-Id': this.reporterId() };
+    },
+
     /** 관리자 요청에 붙일 헤더 — 토큰이 없으면 빈 객체 */
     adminHeaders() {
       const token = this.adminToken();

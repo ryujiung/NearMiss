@@ -3,6 +3,8 @@
 원문(content)은 관리자 토큰 없이 내려가지 않는다 — 단, `/api/reports/mine`은
 요청 기기 자신의 신고만 돌려주므로 예외로 content를 포함한다.
 """
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -20,7 +22,9 @@ class ReportCreate(BaseModel):
     content: str
     reporter_id: str
     reporter: ReporterProfile | None = None
-    created_at: str | None = None
+    # datetime으로 받아 파싱 불가한 값을 422로 거절한다. str로 두면 깨진 값이
+    # 그대로 저장되고, 집계가 그 행을 만나는 순간 통계 탭 전체가 죽는다.
+    created_at: datetime | None = None
 
 
 class ReporterOut(BaseModel):

@@ -26,6 +26,13 @@ from .webhook import notify_high_risk
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
+# 작업자가 초안 화면에서 손으로 고칠 수 있는 칸. risk·category·sources는
+# 여기에 없다 — 분류는 AI가 일관된 기준으로 하는 것이 이 제품의 요점이고,
+# 출처 표시를 클라이언트가 쓰면 그 표시가 거짓이 된다.
+EDITABLE_FIELDS = frozenset(
+    {"title", "occurred_at", "location", "overview", "causes", "countermeasures"}
+)
+
 
 def get_db_conn(request: Request):
     """요청이 속한 앱의 설정에서 DB 경로를 읽어 연결한다.
@@ -122,7 +129,11 @@ def create_report(
         "category": None,
         "status": "draft",
         "acknowledged": False,
-        "created_at": payload.created_at or now,
+        # 들어온 시각은 UTC ISO로 정규화해서 저장한다 — 집계가 읽는 형식을
+        # 클라이언트가 정하게 두지 않는다.
+        "created_at": payload.created_at.astimezone(timezone.utc).isoformat()
+        if payload.created_at
+        else now,
         "updated_at": now,
     }
     saved_id = db_module.insert_report(conn, report)
@@ -171,16 +182,31 @@ def list_unacknowledged(conn=Depends(get_db_conn)) -> list[ReportOut]:
     return [_row_to_admin_out(row, conn) for row in pending]
 
 
-def _is_own_or_admin(row: dict, reporter_id: str, authorization: str | None,
+def _is_own_or_admin(row: dict, reporter_id: str | None, authorization: str | None,
                      settings) -> bool:
-    """자기 기기 건이면 토큰 없이, 남의 건이면 관리자 토큰으로만 볼 수 있다.
+    """자기 기기 건이면 토큰 없이, 남의 건이면 관리자 토큰으로만 접근한다.
 
-    작업자는 자기 초안을 확인해야 하므로 토큰을 요구할 수 없고, 관리자는 미분류
-    건을 들여다봐야 하므로 막을 수 없다.
+    작업자는 자기 초안을 확인·수정·제출해야 하므로 토큰을 요구할 수 없고,
+    관리자는 미분류 건을 들여다봐야 하므로 막을 수 없다.
     """
-    if row["reporter_id"] == reporter_id:
+    if reporter_id is not None and row["reporter_id"] == reporter_id:
         return True
     return is_admin(authorization, settings)
+
+
+def _require_own_or_admin(row, reporter_id, authorization, request) -> None:
+    """소유자도 관리자도 아니면 403.
+
+    신고 id는 보통 UUID지만 시드 id는 seed-001처럼 추측 가능하다. 가드가 없으면
+    인증 없는 요청이 결재용 속보의 칸을 고치거나 상태를 바꾸거나, PATCH answers로
+    LLM 호출을 유발할 수 있다.
+
+    기기 식별은 `X-Reporter-Id` 헤더로 받는다 — 쿼리 파라미터로 두면 submit·
+    draft·photos 모든 호출에 붙여야 해서 비즈니스 인자와 섞인다. 이것은 인증이
+    아니라 "누구 건인가"를 가리는 값이고, 남의 건을 보려면 관리자 토큰이 필요하다.
+    """
+    if not _is_own_or_admin(row, reporter_id, authorization, request.app.state.settings):
+        raise HTTPException(status_code=403, detail="이 신고에 접근할 수 없습니다")
 
 
 @router.post("/{report_id}/draft", status_code=202)
@@ -188,12 +214,15 @@ def request_draft(
     report_id: str,
     background: BackgroundTasks,
     request: Request,
+    x_reporter_id: str | None = Header(None),
+    authorization: str | None = Header(None),
     conn=Depends(get_db_conn),
 ) -> dict:
     """초안 생성을 의뢰한다. 즉시 202로 돌아가고 생성은 백그라운드에서 돈다."""
     row = db_module.get_report(conn, report_id)
     if row is None:
         raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
+    _require_own_or_admin(row, x_reporter_id, authorization, request)
 
     if row["status"] == "analyzing":
         # 이미 돌고 있는 잡이 있으면 새로 띄우지 않는다.
@@ -210,6 +239,8 @@ def patch_draft(
     payload: DraftPatch,
     background: BackgroundTasks,
     request: Request,
+    x_reporter_id: str | None = Header(None),
+    authorization: str | None = Header(None),
     conn=Depends(get_db_conn),
 ) -> dict:
     """초안을 고치거나, 확인 질문 답변으로 재생성을 요청한다.
@@ -220,13 +251,18 @@ def patch_draft(
     row = db_module.get_report(conn, report_id)
     if row is None:
         raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
+    _require_own_or_admin(row, x_reporter_id, authorization, request)
 
-    if payload.fields:
+    # 작업자가 고칠 수 있는 칸만 받는다. risk나 sources를 임의로 주입하면
+    # 배지·통계가 저장값과 어긋나고, 출처 표시가 거짓이 된다.
+    edits = {k: v for k, v in payload.fields.items() if k in EDITABLE_FIELDS}
+
+    if edits:
         draft = json.loads(row["draft_json"]) if row.get("draft_json") else {}
-        draft.update(payload.fields)
+        draft.update(edits)
         # 고친 칸은 출처를 user로 바꾼다. 나머지 칸의 출처는 그대로 둔다.
         sources = draft.get("sources") or {}
-        sources.update({field: "user" for field in payload.fields})
+        sources.update({field: "user" for field in edits})
         draft["sources"] = sources
         db_module.update_report(
             conn, report_id, {"draft_json": json.dumps(draft, ensure_ascii=False)}
@@ -246,6 +282,8 @@ def submit_report(
     report_id: str,
     background: BackgroundTasks,
     request: Request,
+    x_reporter_id: str | None = Header(None),
+    authorization: str | None = Header(None),
     conn=Depends(get_db_conn),
 ) -> dict:
     """최종 제출 — 한 번의 터치로 끝난다.
@@ -259,6 +297,7 @@ def submit_report(
     row = db_module.get_report(conn, report_id)
     if row is None:
         raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
+    _require_own_or_admin(row, x_reporter_id, authorization, request)
 
     db_module.update_report(conn, report_id, {"status": "submitted"})
 

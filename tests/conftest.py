@@ -40,7 +40,7 @@ def make_client(tmp_path):
     shared_db_path = str(tmp_path / "test.db")
     fresh_db_counter = itertools.count(1)
 
-    def _make(*, same_db: bool = True, **overrides):
+    def _make(*, same_db: bool = True, reporter_id: str = "dev-1", **overrides):
         if "db_path" in overrides:
             db_path = overrides.pop("db_path")
         elif same_db:
@@ -60,7 +60,12 @@ def make_client(tmp_path):
         defaults.update(overrides)
         settings = Settings(db_path=db_path, **defaults)
         app = create_app(settings)
-        return stack.enter_context(TestClient(app))
+        # 기기 식별 헤더를 클라이언트에 한 번만 둔다. 소유자 가드가 들어간 뒤로
+        # 모든 호출에 이 값이 필요하고, 호출부마다 붙이면 테스트가 지저분해진다.
+        # 다른 기기를 흉내 낼 테스트는 호출별로 헤더를 덮어쓴다.
+        return stack.enter_context(
+            TestClient(app, headers={"X-Reporter-Id": reporter_id})
+        )
 
     with stack:
         yield _make
@@ -167,7 +172,7 @@ def insert_report(client):
                 {
                     "id": report_id,
                     "client_uuid": f"stat-uuid-{n}",
-                    "reporter_id": "dev-stats",
+                    "reporter_id": "dev-1",
                     "content": content,
                     "reporter_json": json.dumps(reporter) if reporter else None,
                     "draft_json": None,
@@ -314,6 +319,35 @@ def current_draft(client, report_id, reporter_id="dev-1"):
     return client.get(
         f"/api/reports/{report_id}/draft", params={"reporter_id": reporter_id}
     ).json()["draft"]
+
+
+class _EmptyDraftProvider(_RecordingProvider):
+    """파싱은 되지만 칸이 비어 있는 응답 — 조용한 빈 속보 경로를 재현한다."""
+
+    async def complete(self, messages: list[dict]) -> str:
+        self.calls.append(messages)
+        return "분석 결과입니다. {}"
+
+
+class _LeakyProvider(_RecordingProvider):
+    """프롬프트 지시를 어기고 자리표시자를 서술에 써버리는 모델."""
+
+    async def complete(self, messages: list[dict]) -> str:
+        self.calls.append(messages)
+        draft = json.loads(await MockProvider().complete(messages))
+        draft["overview"] = ["[당사자]가 난간에서 넘어질 뻔함"]
+        draft["causes"]["physical"] = "[당사자]가 잡은 난간의 체결 불량"
+        return json.dumps(draft, ensure_ascii=False)
+
+
+@pytest.fixture
+def empty_provider(monkeypatch):
+    return _patch_provider(monkeypatch, _EmptyDraftProvider())
+
+
+@pytest.fixture
+def leaky_provider(monkeypatch):
+    return _patch_provider(monkeypatch, _LeakyProvider())
 
 
 @pytest.fixture

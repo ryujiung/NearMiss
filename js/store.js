@@ -56,11 +56,23 @@
   async function postReport(payload) {
     const res = await fetch('/api/reports', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...Profile.ownerHeaders() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`신고 전송 실패: ${res.status}`);
     return res.json();
+  }
+
+  /** 초안 생성을 의뢰한다. 실패해도 신고 자체는 이미 저장돼 있다. */
+  async function requestDraft(reportId) {
+    try {
+      await fetch(`/api/reports/${reportId}/draft`, {
+        method: 'POST',
+        headers: Profile.ownerHeaders(),
+      });
+    } catch (err) {
+      console.warn('[니어미스] 초안 생성을 의뢰하지 못했습니다', err);
+    }
   }
 
   global.ReportStore = {
@@ -92,7 +104,9 @@
     async myReports() {
       const params = new URLSearchParams({ reporter_id: Profile.reporterId() });
       try {
-        const res = await fetch(`/api/reports/mine?${params}`);
+        const res = await fetch(`/api/reports/mine?${params}`, {
+          headers: Profile.ownerHeaders(),
+        });
         if (!res.ok) throw new Error(`내역 조회 실패: ${res.status}`);
         const list = await res.json();
         writeJson(CACHE_KEY, list);
@@ -134,7 +148,11 @@
           continue;
         }
         try {
-          await postReport(payload);
+          const saved = await postReport(payload);
+          // 재전송으로 올라온 신고도 분석까지 이어간다(사양 3.7). 이걸 빼면
+          // 오프라인 큐가 존재하는 이유인 바로 그 상황에서 올라온 신고가
+          // 전부 draft로 멈춰 통계·관리자 큐 밖에 머문다.
+          if (saved && saved.id) await requestDraft(saved.id);
           sent += 1;
         } catch (err) {
           console.warn('[니어미스] 재전송 실패 — 큐에 남깁니다', err);

@@ -1,6 +1,6 @@
 # 한글 음절 범위
 HANGUL_START = 0xAC00
-HANGUL_END = 0xD7AF
+HANGUL_END = 0xD7A3
 
 # 복성 목록 (2글자 성)
 COMPLEX_SURNAMES = {"남궁", "황보", "제갈", "선우", "서문", "독고"}
@@ -13,7 +13,7 @@ def is_hangul(char):
     return HANGUL_START <= ord(char) <= HANGUL_END
 
 
-def mask_name(name: str) -> str:
+def mask_name(name: str | None) -> str:
     """
     이름을 가린다. 성만 남기고 나머지는 ○으로 표시한다.
 
@@ -22,7 +22,7 @@ def mask_name(name: str) -> str:
     - 비한글 이름: 토큰을 공백으로 나누고, 첫 토큰의 첫 글자를 유지하고 나머지를 가린다.
     - 공백만 있거나 빈 문자열: 빈 문자열을 반환한다.
     """
-    name = name.strip()
+    name = (name or "").strip()
     if not name:
         return ""
 

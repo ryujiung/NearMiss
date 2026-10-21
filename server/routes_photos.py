@@ -10,11 +10,11 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from . import db as db_module
-from .routes_reports import get_db_conn
+from .routes_reports import _require_own_or_admin, get_db_conn
 
 router = APIRouter(prefix="/api", tags=["photos"])
 
@@ -34,6 +34,8 @@ def upload_photo(
     report_id: str,
     request: Request,
     file: UploadFile = File(...),
+    x_reporter_id: str | None = Header(None),
+    authorization: str | None = Header(None),
     conn=Depends(get_db_conn),
 ) -> dict:
     """사진 한 장을 받는다.
@@ -43,8 +45,10 @@ def upload_photo(
     스레드에서 실행되어 다른 스레드가 만든 연결을 쓰게 되고 바로 터진다.
     다른 라우트들과 같은 방식이다.
     """
-    if db_module.get_report(conn, report_id) is None:
+    row = db_module.get_report(conn, report_id)
+    if row is None:
         raise HTTPException(status_code=404, detail="신고를 찾을 수 없습니다")
+    _require_own_or_admin(row, x_reporter_id, authorization, request)
 
     suffix = ALLOWED_TYPES.get(file.content_type or "")
     if suffix is None:
