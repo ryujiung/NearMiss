@@ -128,5 +128,16 @@ def test_draft_polling_returns_attached_photos(client, report_id, capture_provid
     assert [p["photo_id"] for p in photos] == [up["photo_id"]]
 
 
+def test_prompt_receives_site_local_time_not_utc(client, report_id, capture_provider):
+    # UTC 시각을 넘기면 모델이 그걸 그대로 쓰고, 속보 문서의 일시가 KST 현장과
+    # 9시간 어긋난다.
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+
+    client.post(f"/api/reports/{report_id}/draft")
+    local_now = datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Seoul"))
+    assert local_now.strftime("%Y-%m-%d %H:") in capture_provider.last_prompt_text
+
+
 def test_draft_polling_404_for_unknown_report(client, capture_provider):
     assert _poll(client, "없는-id").status_code == 404

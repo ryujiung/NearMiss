@@ -33,7 +33,7 @@
    ```
    NEARMISS_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
    NEARMISS_CHAT_PATH=/chat/completions
-   NEARMISS_MODEL=gemini-2.0-flash
+   NEARMISS_MODEL=gemini-2.5-flash
    NEARMISS_API_KEY=<발급받은 키>
    ```
 

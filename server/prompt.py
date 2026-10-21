@@ -25,6 +25,14 @@ NAME_REDACTION_RULE = (
     f"  적지 마세요. 사람을 가리켜야 할 때는 {IDENTITY_PLACEHOLDER}로 쓰세요."
 )
 
+# [당사자]는 구조화된 인적사항 칸을 위한 자리표시자다. 서술문에 그대로 쓰면
+# "[당사자]가 넘어질 뻔함"이 작업자 화면과 결재 문서에 그대로 박힌다 — 서버가
+# 그 자리를 되돌려 넣지 않기 때문이다. 서술에서는 보통명사를 쓰게 한다.
+NARRATIVE_PERSON_RULE = (
+    "- 발생개요·원인·대책 같은 서술문에는 자리표시자를 쓰지 마세요. 사람을\n"
+    "  가리켜야 하면 '작업자'처럼 보통명사로 쓰세요."
+)
+
 # 사고 유형은 js/classify.js의 7종 + 기타를 그대로 쓴다. 프론트엔드가 같은
 # 어휘로 통계를 집계하므로, 한 글자라도 다르면 통계가 갈라진다.
 CATEGORIES = (
@@ -54,7 +62,7 @@ _SYSTEM_TEMPLATE = """\
   "risk": "상|중|하",
   "risk_reason": "위험도 분류의 한 줄 근거",
   "category": "사고 유형 7종 중 하나 또는 기타",
-  "occurred_at": "발생 시각 (ISO 형식 또는 자연어)",
+  "occurred_at": "YYYY-MM-DD HH:MM",
   "location": "발생 장소",
   "overview": ["HH:MM 무슨 일", "..."],
   "causes": {"physical": "물리적/환경적 원인", "process": "시스템/프로세스 원인", "organizational": "조직적 원인"},
@@ -66,8 +74,12 @@ _SYSTEM_TEMPLATE = """\
 - 위험도(risk)는 아래 기준을 따르세요. 이 기준 밖에서 임의로 판단하지 마세요.
 __CRITERIA__
 - category는 다음 중 정확히 하나를 그대로 쓰세요: __CATEGORIES__.
-- occurred_at은 입력 시각을 기본값으로 삼되, 문장에 "어제 오후 2시"처럼 상대적인
-  시간 표현이 있으면 그것을 기준으로 보정하세요. 현재 시각은 __NOW__입니다.
+- causes의 physical, process, organizational 세 가지를 모두 채우세요. 한 줄 입력에서
+  단서가 적어도, 그 상황이 반복되지 않게 하려면 조직 차원에서 무엇이 빠졌는지까지
+  짚어야 합니다. 빈 칸으로 두지 마세요.
+- occurred_at은 "YYYY-MM-DD HH:MM" 형태로만 쓰세요. 입력 시각을 기본값으로 삼되,
+  문장에 "어제 오후 2시"처럼 상대적인 시간 표현이 있으면 그것을 기준으로 보정하세요.
+  현재 시각은 __NOW__입니다.
 - overview는 시각별 서술입니다. 각 항목은 "HH:MM 무슨 일" 형태로 쓰고, 시각을 알
   수 없으면 추측한 시각을 붙이지 말고 시각 없이 서술하세요.
 - countermeasures의 각 항목 끝에는 기한 표기를 붙이세요: 즉시 가능한 조치는
@@ -75,6 +87,7 @@ __CRITERIA__
 - 인적사항은 이미 __PLACEHOLDER__로 치환되어 있습니다. 실명이나 사번을 추측해서
   채우지 마세요.
 __NAME_RULE__
+__NARRATIVE_RULE__
 - questions는 최대 2개입니다. 0개도 정상입니다. 질문은 장소·설비처럼 양식의 빈
   칸을 메우는 데에만 한정하세요. "더 자세히 말씀해주세요" 같은 열린 질문은
   금지합니다.
@@ -86,6 +99,7 @@ _SYSTEM_MESSAGE_BASE = (
     .replace("__CATEGORIES__", ", ".join(CATEGORIES))
     .replace("__PLACEHOLDER__", IDENTITY_PLACEHOLDER)
     .replace("__NAME_RULE__", NAME_REDACTION_RULE)
+    .replace("__NARRATIVE_RULE__", NARRATIVE_PERSON_RULE)
 )
 
 
@@ -106,12 +120,16 @@ def build_draft_prompt(
     - locked: 작업자가 이미 손으로 고친 칸. 재생성 결과가 이 값을 덮지 않도록
       "확정된 사실"로 주입한다(사양 3.5).
     """
-    system_content = _SYSTEM_MESSAGE_BASE.replace("__NOW__", now.isoformat())
+    # ISO를 넣으면 모델이 그대로 베껴 쓰고, UTC면 현장 시각과 어긋난다.
+    # 호출하는 쪽이 현장 시간대의 datetime을 넘겨준다.
+    wall_clock = now.strftime("%Y-%m-%d %H:%M")
+    system_content = _SYSTEM_MESSAGE_BASE.replace("__NOW__", wall_clock)
 
     user_lines = [
         f"신고 원문: {content}",
-        f"입력 시각: {now.isoformat()}",
-        f"당사자: {IDENTITY_PLACEHOLDER}",
+        f"입력 시각: {wall_clock}",
+        # 인적사항 칸은 서버가 저장된 값으로 채운다 — 모델이 추측할 필요가 없다.
+        f"인적사항: {IDENTITY_PLACEHOLDER} (서버가 채움, 건드리지 마세요)",
     ]
 
     if answers:

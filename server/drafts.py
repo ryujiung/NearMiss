@@ -15,6 +15,7 @@
 import json
 import logging
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from . import db as db_module
 from .config import Settings
@@ -93,9 +94,14 @@ async def run_draft_job(
         previous = json.loads(row["draft_json"]) if row.get("draft_json") else None
         locked = locked_fields(previous)
 
+        # 프롬프트에는 현장 시간대의 벽시계 시각을 넘긴다. UTC를 넘기면 모델이
+        # 그 값을 속보의 일시 칸에 그대로 쓰고, KST 현장과 9시간 어긋난다.
+        site_tz = ZoneInfo(settings.timezone_name)
+        now_local = datetime.now(timezone.utc).astimezone(site_tz)
+
         messages = build_draft_prompt(
             row["content"],
-            now=datetime.now(timezone.utc),
+            now=now_local,
             answers=answers or None,
             locked=locked or None,
         )

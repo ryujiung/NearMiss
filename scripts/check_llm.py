@@ -28,12 +28,16 @@ from server.risk import RISK_LEVELS  # noqa: E402
 # 과제정의서 5장의 예시 입력. 현장 작업자가 말하듯 쓴 한 문장.
 SAMPLE = "3층 계단 난간 헐거움, 넘어질 뻔함"
 
-# Gemini 무료 등급에서 자주 쓰이는 후보들. 이름이 바뀔 수 있어서 차례로 시도한다.
+# Gemini 후보들. 모델 이름은 생각보다 자주 사라진다 — gemini-2.0-flash는 이미
+# "no longer available"이다. 그래서 차례로 시도하고, 쓸 이름을 알려준다.
+#
+# `-latest` 계열은 일부러 넣지 않는다. 데모 전날 모델이 바뀌면 손쓸 수 없으므로
+# 버전을 명시한 이름을 고정해서 쓴다.
 CANDIDATES = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
-    "gemini-1.5-flash",
     "gemini-2.5-flash",
+    "gemini-3.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-3-flash-preview",
 ]
 
 _CAUSE_KEYS = ("physical", "process", "organizational")

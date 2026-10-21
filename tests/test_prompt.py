@@ -4,6 +4,7 @@ import pytest
 
 from server.prompt import (
     NAME_REDACTION_RULE,
+    NARRATIVE_PERSON_RULE,
     DraftParseError,
     IDENTITY_PLACEHOLDER,
     build_draft_prompt,
@@ -25,6 +26,32 @@ def test_prompt_uses_identity_placeholder_for_structured_identity():
     msgs = build_draft_prompt("박민수가 미끄러질 뻔함", now=NOW)
     joined = "".join(m["content"] for m in msgs)
     assert IDENTITY_PLACEHOLDER in joined
+
+
+def test_prompt_states_the_occurred_at_output_format():
+    # 모델에게 ISO 문자열을 그대로 주면 그대로 베껴 쓴다. 속보 문서에 들어갈
+    # 모양을 지시해야 한다.
+    joined = "".join(m["content"] for m in build_draft_prompt("난간 헐거움", now=NOW))
+    assert "YYYY-MM-DD HH:MM" in joined
+
+
+def test_prompt_gives_local_wall_clock_not_utc_iso():
+    # UTC ISO를 넣으면 KST 현장에서 9시간 어긋난 일시가 문서에 박힌다.
+    joined = "".join(m["content"] for m in build_draft_prompt("난간 헐거움", now=NOW))
+    assert "2026-10-20 14:30" in joined
+    assert NOW.isoformat() not in joined
+
+
+def test_prompt_tells_model_not_to_write_the_placeholder_into_narrative():
+    # [당사자]를 서술에 쓰라고 하면 "[당사자]가 넘어질 뻔함"이 화면에 그대로 뜬다.
+    # 문구가 아니라 규칙의 존재를 고정한다.
+    joined = "".join(m["content"] for m in build_draft_prompt("난간 헐거움", now=NOW))
+    assert NARRATIVE_PERSON_RULE in joined
+
+
+def test_prompt_requires_all_three_cause_categories():
+    joined = "".join(m["content"] for m in build_draft_prompt("난간 헐거움", now=NOW))
+    assert "세 가지를 모두" in joined
 
 
 def test_prompt_forbids_writing_personal_names_into_generated_fields():
