@@ -7,6 +7,13 @@
 // 실행 (다른 창에서 서버를 먼저 띄운다):
 //   python -m server.seed && uvicorn server.main:app --port 8000
 //   npm install jsdom && node tests/manual/<파일>.mjs
+//
+// 중요: 이 하네스는 NEARMISS_LLM_MODE=mock 으로 띄운 서버에 대고 돌린다.
+// 실제 LLM로 돌리면 응답이 10~15초이고, 연달아 돌릴 때 무료 등급 분당 한도
+// (429)에 걸려 거짓 실패가 난다. 하네스가 보려는 것은 앱이 올바른 순서로
+// 올바른 요청을 보내는가이지 모델의 가용성이 아니다.
+//
+//   NEARMISS_LLM_MODE=mock uvicorn server.main:app --port 8000
 
 // js/brief-doc.js를 jsdom에 실제로 그려 검증한다.
 // 브라우저 확장을 못 쓰므로, 사양 3.2가 요구하는 칸 순서·AI 표시·빈 칸 처리·

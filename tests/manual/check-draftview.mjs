@@ -7,6 +7,13 @@
 // 실행 (다른 창에서 서버를 먼저 띄운다):
 //   python -m server.seed && uvicorn server.main:app --port 8000
 //   npm install jsdom && node tests/manual/<파일>.mjs
+//
+// 중요: 이 하네스는 NEARMISS_LLM_MODE=mock 으로 띄운 서버에 대고 돌린다.
+// 실제 LLM로 돌리면 응답이 10~15초이고, 연달아 돌릴 때 무료 등급 분당 한도
+// (429)에 걸려 거짓 실패가 난다. 하네스가 보려는 것은 앱이 올바른 순서로
+// 올바른 요청을 보내는가이지 모델의 가용성이 아니다.
+//
+//   NEARMISS_LLM_MODE=mock uvicorn server.main:app --port 8000
 
 // js/draft-view.js를 jsdom + 실제 서버로 끝까지 돌린다.
 // brief Step 3의 1~8번을 기계로 대체 검증한다.
@@ -53,6 +60,23 @@ function check(label, ok, detail = '') {
   if (!ok) failures += 1;
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** 초안이 정착(ready/failed/submitted)할 때까지 기다린다.
+ *
+ * 고정 sleep을 쓰면 mock(즉시)에서는 통과하고 실제 LLM(10~15초)에서는 거짓
+ * 실패한다. 하네스가 모델 속도에 의존해서는 안 된다.
+ */
+async function waitSettled(timeoutMs = 60000) {
+  const started = Date.now();
+  const settled = ['ready', 'failed', 'submitted'];
+  while (Date.now() - started < timeoutMs) {
+    const st = window.DraftView._state();
+    if (st && settled.includes(st.status)) return st.status;
+    await sleep(300);
+  }
+  return window.DraftView._state() && window.DraftView._state().status;
+}
+
 const root = () => window.document.getElementById('draft-root');
 const banner = () => window.document.getElementById('draft-banner');
 
@@ -80,7 +104,7 @@ check('body에 draft-open이 붙어 배경 스크롤이 잠긴다',
   window.document.body.classList.contains('draft-open'));
 
 // 폴링이 끝나길 기다린다
-for (let i = 0; i < 30 && DraftView._state()?.status !== 'ready'; i++) await sleep(150);
+await waitSettled();
 check('폴링이 ready까지 간다', DraftView._state().status === 'ready',
   DraftView._state().status);
 check('위험도 배지가 글자와 함께 나온다',

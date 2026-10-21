@@ -7,6 +7,13 @@
 // 실행 (다른 창에서 서버를 먼저 띄운다):
 //   python -m server.seed && uvicorn server.main:app --port 8000
 //   npm install jsdom && node tests/manual/check-submit-flow.mjs
+//
+// 중요: 이 하네스는 NEARMISS_LLM_MODE=mock 으로 띄운 서버에 대고 돌린다.
+// 실제 LLM로 돌리면 응답이 10~15초이고, 연달아 돌릴 때 무료 등급 분당 한도
+// (429)에 걸려 거짓 실패가 난다. 하네스가 보려는 것은 앱이 올바른 순서로
+// 올바른 요청을 보내는가이지 모델의 가용성이 아니다.
+//
+//   NEARMISS_LLM_MODE=mock uvicorn server.main:app --port 8000
 import fs from 'node:fs';
 import { JSDOM } from 'jsdom';
 
@@ -61,6 +68,23 @@ function check(label, ok, detail = '') {
   if (!ok) failures += 1;
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** 초안이 정착(ready/failed/submitted)할 때까지 기다린다.
+ *
+ * 고정 sleep을 쓰면 mock(즉시)에서는 통과하고 실제 LLM(10~15초)에서는 거짓
+ * 실패한다. 하네스가 모델 속도에 의존해서는 안 된다.
+ */
+async function waitSettled(timeoutMs = 60000) {
+  const started = Date.now();
+  const settled = ['ready', 'failed', 'submitted'];
+  while (Date.now() - started < timeoutMs) {
+    const st = window.DraftView._state();
+    if (st && settled.includes(st.status)) return st.status;
+    await sleep(300);
+  }
+  return window.DraftView._state() && window.DraftView._state().status;
+}
+
 const draftRoot = () => window.document.getElementById('draft-root');
 const banner = () => window.document.getElementById('draft-banner');
 
@@ -72,7 +96,7 @@ content.value = '2공장 3라인 컨베이어 옆 바닥에 기름이 새어 미
 calls.length = 0;
 form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
 for (let i = 0; i < 40 && !calls.includes('POST /api/reports'); i++) await sleep(100);
-await sleep(1500);
+await waitSettled();
 
 console.log('\n서버로 간 요청:');
 calls.forEach((c) => console.log('  ', c));
@@ -132,7 +156,7 @@ check('요청이 실패하면 재시도 버튼이 나온다', !!draftRoot().quer
 check('그 상태에서도 제출 버튼이 있다', !!draftRoot().querySelector('.draft-actions .btn-submit'));
 serverDown = false;
 draftRoot().querySelector('.btn-retry').dispatchEvent(new window.Event('click'));
-await sleep(1200);
+await waitSettled();
 check('재시도하면 분석이 진행된다',
   window.DraftView._state() && window.DraftView._state().status === 'ready',
   window.DraftView._state() && window.DraftView._state().status);

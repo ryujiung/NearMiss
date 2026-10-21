@@ -85,9 +85,14 @@ python -m pytest          # 176개
 프론트엔드는 사양 4의 결정에 따라 자동 테스트 대신 **수동 하네스**로 확인합니다.
 jsdom으로 실제 모듈을 실제 서버에 붙여 돌립니다 — 브라우저가 필요 없습니다.
 
+하네스는 **mock 모드 서버**에 대고 돌립니다. 실제 LLM으로 돌리면 응답이 10~15초이고
+연달아 돌릴 때 무료 등급 분당 한도(429)에 걸려 거짓 실패가 납니다 — 하네스가 보려는
+것은 앱이 올바른 요청을 보내는가이지 모델의 가용성이 아닙니다.
+
 ```bash
 npm install jsdom                                  # 한 번만
-python -m server.seed && uvicorn server.main:app   # 다른 창에서
+python -m server.seed                              # 다른 창에서
+NEARMISS_LLM_MODE=mock uvicorn server.main:app --port 8000
 node tests/manual/check-store.mjs       # 프로필·오프라인 큐·멱등 재전송
 node tests/manual/check-briefdoc.mjs    # 속보 문서 렌더러
 node tests/manual/check-draftview.mjs   # 초안 화면 전체 흐름
