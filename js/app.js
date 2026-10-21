@@ -215,10 +215,13 @@
   // ---------- 음성 입력 ----------
   let voice = null;
 
+  // 시동어('목업')를 말하면 이 파일의 문장을 실제 음성처럼 흘려보낸다 (서버 모드와 무관한 정적 파일)
+  const MOCK_VOICE_URL = 'rec_mock/' + encodeURIComponent('니어미스사례1.txt');
+
   async function loadMockScript() {
     try {
-      const res = await fetch('/api/mock-voice');
-      return res.ok ? (await res.json()).text || null : null;
+      const res = await fetch(MOCK_VOICE_URL);
+      return res.ok ? (await res.text()).trim() || null : null;
     } catch (e) {
       return null;
     }

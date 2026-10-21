@@ -45,9 +45,17 @@
    python -m scripts.check_llm --try-models    # 모델명을 모를 때 후보를 차례로
    ```
 
-   키가 없어도 `NEARMISS_LLM_MODE=mock`으로 전체 흐름이 돌아갑니다. 단 mock은 입력과
-   무관하게 고정된 속보를 돌려주므로, 데모에서 "AI가 내 말을 이해한다"는 장면은
-   나오지 않습니다.
+   키가 없어도 서버가 바로 뜹니다. `NEARMISS_API_BASE_URL`과 `NEARMISS_API_KEY`가 없으면
+   자동으로 mock 모드로 시작하고, 신고 원문에서 사고 유형·일시·장소·발생개요를 뽑아
+   속보 초안을 만듭니다(원인·대책 문구는 일반 문구). 실제 LLM이 설정되면 live로 동작하고,
+   `NEARMISS_LLM_MODE=mock|live`로 직접 고를 수도 있습니다.
+   `NEARMISS_MOCK_FIXTURE`를 비우면 기본값 `auto`이며, 고정 속보를 쓰려면
+   `server/fixtures/`의 파일명을 지정합니다.
+
+   **음성 시연("목업" 시동어):** 신고 탭에서 "눌러서 말하기"를 누르고 **"목업"**이라고
+   말하면 `rec_mock/니어미스사례1.txt`의 내용이 실제로 말하는 것처럼 천천히
+   입력됩니다. 정적 파일을 읽는 방식이라 서버 모드와 상관없이 동작하고, Chrome과 마이크
+   권한이 필요합니다. 다른 사례를 쓰려면 이 txt 내용을 바꾸면 됩니다.
 
    > 무료 등급은 보낸 데이터를 모델 개선에 쓸 수 있습니다. 데모용 합성 데이터는
    > 괜찮지만, 실제 현장 신고를 넣기 전에는 다시 판단해야 합니다.
@@ -69,7 +77,7 @@
 5. 서버 실행
 
    ```bash
-   uvicorn server.main:app --reload
+   python -m uvicorn server.main:app --reload
    ```
 
 6. 브라우저에서 `http://localhost:8000` 접속

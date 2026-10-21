@@ -140,12 +140,15 @@ def _derive_draft(messages: list[dict]) -> str:
 class MockProvider:
     """네트워크 없이 초안을 돌려주는 프로바이더.
 
-    기본은 고정 픽스처다(테스트용). `NEARMISS_MOCK_FIXTURE=auto`이면 신고 원문을
-    읽어 초안을 만들고, 파일명을 주면 fixtures 폴더의 그 파일을 쓴다.
+    fixture가 비면(기본) 고정 픽스처를 쓴다(테스트용). "auto"이면 신고 원문을
+    읽어 초안을 만들고, 파일명이면 fixtures 폴더의 그 파일을 쓴다.
     """
 
+    def __init__(self, fixture: str | None = None):
+        self.fixture = fixture
+
     async def complete(self, messages: list[dict]) -> str:
-        name = os.environ.get("NEARMISS_MOCK_FIXTURE")
+        name = self.fixture
         if name == "auto":
             return _derive_draft(messages)
         path = _MOCK_FIXTURE.parent / Path(name).name if name else _MOCK_FIXTURE
@@ -155,5 +158,5 @@ class MockProvider:
 def get_provider(settings: Settings) -> LLMProvider:
     """설정에 따라 프로바이더를 고른다."""
     if settings.llm_mode == "mock":
-        return MockProvider()
+        return MockProvider(settings.mock_fixture)
     return LiveProvider(settings)

@@ -46,6 +46,8 @@ class Settings:
     admin_token: str
     webhook_url: str | None = None
     llm_mode: str = "live"
+    # mock 모드에서 쓸 초안: 비우면 고정 픽스처, "auto"면 신고 원문에서 만든다.
+    mock_fixture: str = ""
     # OpenAI 호환이라도 경로 배치가 제각각이다. 예를 들어 Gemini의 호환
     # 엔드포인트는 /v1beta/openai/chat/completions 로 /v1 조각이 없다.
     # base URL만으로는 맞출 수 없으므로 경로도 설정값으로 둔다.
@@ -64,13 +66,16 @@ class Settings:
 def get_settings() -> Settings:
     """환경변수에서 설정값을 읽어온다. `.env`가 있으면 먼저 올린다."""
     load_dotenv()
+    # 키가 없으면 live는 어차피 실패하므로, 설정 없이 띄운 서버는 mock으로 시작한다.
+    has_live_config = bool(os.environ.get("NEARMISS_API_BASE_URL") and os.environ.get("NEARMISS_API_KEY"))
     return Settings(
         api_base_url=os.environ.get("NEARMISS_API_BASE_URL", ""),
         api_key=os.environ.get("NEARMISS_API_KEY", ""),
         model=os.environ.get("NEARMISS_MODEL", ""),
         admin_token=os.environ.get("NEARMISS_ADMIN_TOKEN", ""),
         webhook_url=os.environ.get("NEARMISS_WEBHOOK_URL") or None,
-        llm_mode=os.environ.get("NEARMISS_LLM_MODE", "live"),
+        llm_mode=os.environ.get("NEARMISS_LLM_MODE", "live" if has_live_config else "mock"),
+        mock_fixture=os.environ.get("NEARMISS_MOCK_FIXTURE", "auto"),
         chat_path=os.environ.get("NEARMISS_CHAT_PATH", "/v1/chat/completions"),
         db_path=os.environ.get("NEARMISS_DB_PATH", "nearmiss.db"),
         request_timeout=float(os.environ.get("NEARMISS_REQUEST_TIMEOUT", "120")),
