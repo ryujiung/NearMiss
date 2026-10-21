@@ -44,19 +44,19 @@ function load(path) {
   const src = fs.readFileSync(`${REPO}/${path}`, 'utf8');
   new Function(
     'window', 'document', 'localStorage', 'fetch', 'navigator', 'console',
-    'Profile', 'ReportStore', 'BriefDoc', 'DraftView', 'AdminView',
+    'Profile', 'ReportStore', 'AutoDraft', 'BriefDoc', 'DraftView', 'AdminView',
     'NearMissStats', 'NearMissClassify', 'VoiceInput', 'FormData', 'history', 'location',
     src
   )(
     window, window.document, window.localStorage, fakeFetch, fakeNavigator, console,
-    window.Profile, window.ReportStore, window.BriefDoc, window.DraftView,
+    window.Profile, window.ReportStore, window.AutoDraft, window.BriefDoc, window.DraftView,
     window.AdminView, window.NearMissStats, window.NearMissClassify,
     window.VoiceInput, globalThis.FormData, window.history, window.location
   );
 }
 
 for (const f of [
-  'js/profile.js', 'js/store.js', 'js/brief-doc.js', 'js/draft-view.js',
+  'js/profile.js', 'js/store.js', 'js/auto-draft.js', 'js/brief-doc.js', 'js/draft-view.js',
   'js/admin.js', 'js/classify.js', 'js/stats.js', 'js/voice-input.js', 'js/app.js',
 ]) {
   load(f);

@@ -148,23 +148,46 @@
     }
   }
 
+  /**
+   * 미리보기에 쓸 속보 초안을 고른다.
+   * 실제 AI(live)가 만든 초안이 있으면 그것을 쓰고, 없으면(키 없음·mock·서버 없는
+   * 배포) 브라우저에서 규칙으로 만든다. 작업자가 초안 화면에서 손으로 고친 칸은
+   * 어느 쪽이든 그 값을 유지한다.
+   */
+  function previewDraft(report) {
+    if (report.draft && report.engine === 'live') return { draft: report.draft, mark: 'AI' };
+    const draft = AutoDraft.build(report.content, report.createdAt);
+    const server = report.draft || {};
+    Object.entries(server.sources || {}).forEach(([field, origin]) => {
+      if (origin === 'user' && field in server) {
+        draft[field] = server[field];
+        draft.sources[field] = 'user';
+      }
+    });
+    return { draft, mark: '자동' };
+  }
+
   function renderPreview(report) {
     previewRoot.replaceChildren();
-    const reportDetails = report.details || null;
 
     const documentCard = document.createElement('article');
-    documentCard.className = 'report-document';
+    documentCard.className = 'report-document report-sheet';
 
-    const title = document.createElement('h3');
-    title.textContent = '아차사고 보고서';
-    documentCard.appendChild(title);
+    const { draft, mark } = previewDraft(report);
+    BriefDoc.renderSheet(documentCard, { ...report, draft }, { mark, profile: Profile.get() });
 
+    // 원문과 기록은 양식 아래에 접어 둔다 — 자동 작성 결과를 원문과 대조할 수 있게.
+    const record = document.createElement('details');
+    record.className = 'sheet-record';
+    const summary = document.createElement('summary');
+    summary.textContent = '신고 원문 및 기록';
     const metadata = document.createElement('dl');
     metadata.className = 'report-document-meta';
     [
       ['작성일시', formatDate(report.createdAt)],
       ['녹음일시', report.recordedAt ? formatDate(report.recordedAt) : report.recordedAt === undefined ? '기록 없음' : '음성 녹음 없음 (직접 입력)'],
-      ['사고 유형 (참고)', NearMissClassify.classify(report)],
+      ['사고 유형', draft.category || NearMissClassify.classify(report)],
+      ['위험도', draft.risk || '미분류'],
     ].forEach(([label, value]) => {
       const item = document.createElement('div');
       const term = document.createElement('dt');
@@ -174,39 +197,12 @@
       item.append(term, description);
       metadata.appendChild(item);
     });
-    documentCard.appendChild(metadata);
-
-    // 속보 초안이 있으면 초안 화면·관리자 상세와 같은 전체 속보 문서를 그대로 쓴다.
-    if (report.draft) {
-      const briefHost = document.createElement('div');
-      briefHost.className = 'preview-brief';
-      BriefDoc.render(briefHost, report, { editable: false });
-      const briefTitle = briefHost.querySelector('.doc-title');
-      if (briefTitle) briefTitle.remove();
-      documentCard.appendChild(briefHost);
-    }
-
-    if (reportDetails) {
-      const details = document.createElement('dl');
-      details.className = 'report-details';
-      reportDetails.forEach(([label, value]) => {
-        const item = document.createElement('div');
-        const term = document.createElement('dt');
-        term.textContent = label;
-        const description = document.createElement('dd');
-        description.textContent = value;
-        item.append(term, description);
-        details.appendChild(item);
-      });
-      documentCard.appendChild(details);
-    }
-
-    const contentTitle = document.createElement('h4');
-    contentTitle.textContent = report.draft || reportDetails ? '신고 원문' : '신고 내용';
     const contentBody = document.createElement('p');
     contentBody.className = 'report-document-content';
     contentBody.textContent = report.content;
-    documentCard.append(contentTitle, contentBody);
+    record.append(summary, metadata, contentBody);
+    documentCard.appendChild(record);
+
     previewRoot.appendChild(documentCard);
     previewPdfButton.disabled = false;
     updateGmailLink();
@@ -336,6 +332,7 @@
       pendingReport = {
         ...(pendingReport || {}),
         draft: body.draft,
+        engine: body.engine,
         risk: body.risk,
         photos: body.photos || [],
         ...(await ownReportIdentity(reportId)),

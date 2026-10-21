@@ -339,6 +339,9 @@ def get_draft(
         "draft": json.loads(row["draft_json"]) if row.get("draft_json") else None,
         "risk": row.get("risk"),
         "error": row.get("draft_error"),
+        # 초안을 누가 만들었는지(live/mock). mock 초안은 규칙으로 흉내 낸 것이라
+        # 미리보기는 이 값을 보고 브라우저의 규칙 기반 초안으로 대신한다.
+        "engine": request.app.state.settings.llm_mode,
         # 사진을 함께 내려준다 — 작업자가 초안 화면에 다시 들어왔을 때 자기가
         # 첨부한 사진이 안 보이면, 이미 2장인 줄 모르고 또 올리려 한다.
         "photos": [

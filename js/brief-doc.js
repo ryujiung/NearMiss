@@ -260,5 +260,106 @@
     container.append(doc);
   }
 
-  global.BriefDoc = { render, riskBadge };
+  /**
+   * 속보 양식 그대로의 읽기 전용 문서 (보고서 미리보기·PDF용).
+   *
+   * 상단 바 → 제목 → 사진 2칸 → 일시·장소 → 인적사항 → 발생개요 → 발생원인 →
+   * 재발방지 대책 순서. 빈 칸은 숨기지 않고 '입력 필요'로 둔다 — 무엇을 채워야
+   * 하는지 보여야 한다. opts.mark는 자동으로 채운 칸에 붙일 표시 글자다.
+   */
+  function renderSheet(container, report, options) {
+    const opts = Object.assign({ mark: 'AI', profile: null }, options || {});
+    const draft = report.draft || {};
+    const NEED = '입력 필요';
+
+    const mark = () => {
+      const node = el('span', 'sheet-mark', opts.mark);
+      node.title = '자동으로 채운 칸입니다. 확인 후 고쳐 주세요.';
+      return node;
+    };
+    const line = (label, value) => {
+      const p = el('p', 'sheet-line');
+      p.append(el('b', null, `${label} : `));
+      const v = el('span', value ? null : 'sheet-need', value || NEED);
+      p.append(v);
+      return p;
+    };
+    const section = (title, withMark) => {
+      const sec = el('section', 'sheet-section');
+      const h = el('h4', 'sheet-heading', title);
+      if (withMark) h.append(mark());
+      sec.append(h);
+      return sec;
+    };
+
+    container.innerHTML = '';
+    const sheet = el('article', 'brief-sheet');
+    sheet.append(el('div', 'sheet-bar', '니어미스 속보 초안'));
+    const body = el('div', 'sheet-body');
+
+    body.append(el('h3', 'sheet-title', draft.title || '○○공장 니어미스 속보'));
+
+    const photos = report.photos || [];
+    const grid = el('div', 'sheet-photos');
+    [0, 1].forEach((i) => {
+      if (photos[i]) {
+        const img = el('img');
+        img.src = photos[i].url;
+        img.alt = `첨부 사진 ${i + 1}`;
+        grid.append(img);
+      } else {
+        grid.append(el('div', 'sheet-photo-empty', `사진 ${i + 1}`));
+      }
+    });
+    body.append(grid);
+
+    const when = global.AutoDraft ? AutoDraft.formatOccurred(draft.occurred_at) : draft.occurred_at;
+    const head = el('div', 'sheet-head');
+    head.append(line('일시', when), line('장소', draft.location));
+    body.append(head);
+
+    // 인적사항: 서버가 준 값(마스킹됨) → 이 기기의 프로필 순으로 쓴다
+    const reporter = report.reporter || opts.profile || {};
+    const name = identityText(report, false) || reporter.name || '';
+    const person = section('인적사항', false);
+    person.append(
+      line('소속', reporter.org),
+      line('성명', name),
+      line('직무', reporter.role),
+      line('재해 정도', '無')
+    );
+    body.append(person);
+
+    const overview = section('발생개요', sourceOf(draft, 'overview') !== 'user');
+    const lines = (draft.overview || []).filter(Boolean);
+    if (lines.length) lines.forEach((t) => overview.append(el('p', 'sheet-text', t)));
+    else overview.append(el('p', 'sheet-need', NEED));
+    body.append(overview);
+
+    const causes = section('발생원인', sourceOf(draft, 'causes') !== 'user');
+    const c = draft.causes || {};
+    CAUSE_LABELS.forEach(([key, label]) => {
+      const p = el('p', 'sheet-text');
+      p.append(el('span', 'sheet-tag', `[${label}]`));
+      p.append(document.createTextNode(` ${c[key] || NEED}`));
+      causes.append(p);
+    });
+    body.append(causes);
+
+    const measures = section('재발방지 대책', sourceOf(draft, 'countermeasures') !== 'user');
+    const items = (draft.countermeasures || []).filter(Boolean);
+    if (items.length) {
+      const ul = el('ul', 'sheet-list');
+      items.forEach((t) => ul.append(el('li', null, t)));
+      measures.append(ul);
+    } else {
+      measures.append(el('p', 'sheet-need', NEED));
+    }
+    body.append(measures);
+
+    sheet.append(body);
+    container.append(sheet);
+  }
+
+  global.BriefDoc = { render, renderSheet, riskBadge };
 })(window);

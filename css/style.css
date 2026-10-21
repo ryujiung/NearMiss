@@ -1192,3 +1192,82 @@ body.draft-open { overflow: hidden; }
 /* 보고서 미리보기 안의 전체 속보 문서 */
 .preview-brief { margin-top: 16px; }
 .preview-brief .brief-doc { margin: 0; padding: 0; border: 0; box-shadow: none; background: transparent; }
+
+/* ===== 보고서 미리보기: 속보 양식 ===== */
+.report-document.report-sheet { padding: 0; overflow: hidden; }
+.brief-sheet { color: #1d2330; word-break: keep-all; }
+.sheet-bar {
+  background: #1b2b45;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 10px 16px;
+}
+.sheet-body { padding: 16px 18px 6px; }
+.report-document .sheet-title {
+  margin: 0 0 14px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  text-align: center;
+  color: #1d2330;
+  letter-spacing: -0.02em;
+}
+.sheet-photos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.sheet-photos img,
+.sheet-photo-empty {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.sheet-photo-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #c4ccd8;
+  background: #eef1f5;
+  color: #8a93a3;
+  font-size: 0.9rem;
+}
+.sheet-head { padding-bottom: 12px; border-bottom: 1px solid #e2e7ee; }
+.sheet-line { margin: 2px 0; font-size: 0.95rem; overflow-wrap: anywhere; }
+.sheet-line b { font-weight: 800; }
+.sheet-section { padding: 12px 0; border-bottom: 1px solid #e2e7ee; }
+.sheet-section:last-child { border-bottom: 0; }
+.report-document .sheet-heading {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sheet-mark {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #e3edfb;
+  color: #2a5db0;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.sheet-text { margin: 2px 0; font-size: 0.95rem; line-height: 1.5; overflow-wrap: anywhere; }
+.sheet-tag { font-weight: 600; }
+.sheet-need { color: var(--muted); }
+.sheet-list { margin: 0; padding-left: 0; list-style: none; font-size: 0.95rem; line-height: 1.5; }
+.sheet-list li::before { content: '· '; }
+.sheet-record { margin: 0 18px 16px; padding-top: 10px; border-top: 1px solid #e2e7ee; }
+.sheet-record summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+.sheet-record .report-document-meta { margin-top: 8px; }
+.sheet-record .report-document-content { margin-top: 10px; font-size: 0.9rem; }
+
+@media print {
+  .sheet-record, .sheet-mark { display: none !important; }
+  .sheet-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sheet-photos img, .sheet-photo-empty { aspect-ratio: auto; height: 45mm; }
+}
