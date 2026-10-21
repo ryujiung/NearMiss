@@ -67,16 +67,15 @@
   function tokenPrompt(container) {
     const box = el('div', 'notice');
     box.append(
-      el('p', null, '관리자 토큰이 필요합니다. 신고하기 탭의 "내 정보 · 설정"에서 토큰을 입력해 주세요.')
+      el('p', null, '관리자 토큰이 필요합니다. 위 "내 정보 · 설정"에서 토큰을 입력하고 저장해 주세요.')
     );
-    const go = el('button', 'btn-secondary', '설정으로 이동');
+    const go = el('button', 'btn-secondary', '토큰 입력하러 가기');
     go.type = 'button';
     go.addEventListener('click', () => {
-      document.getElementById('tab-btn-report').click();
-      const settings = document.getElementById('settings');
-      if (settings) {
-        settings.open = true;
-        settings.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const tokenField = document.getElementById('admin-token');
+      if (tokenField) {
+        tokenField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        tokenField.focus();
       }
     });
     box.append(go);

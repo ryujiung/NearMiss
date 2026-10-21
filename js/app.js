@@ -14,6 +14,7 @@
   const previewEditButton = document.getElementById('preview-edit');
   const previewPdfButton = document.getElementById('preview-pdf');
   const previewGmailLink = document.getElementById('preview-gmail');
+  const sendResult = document.getElementById('send-result');
   const recipientInput = document.getElementById('recipient-input');
   const recipientList = document.getElementById('recipient-list');
   const recipientError = document.getElementById('recipient-error');
@@ -37,33 +38,31 @@
   function updateGmailLink() {
     const enabled = Boolean(pendingReport && recipients.length);
     previewGmailLink.setAttribute('aria-disabled', String(!enabled));
-    if (!enabled) {
-      previewGmailLink.removeAttribute('href');
-      previewGmailLink.tabIndex = -1;
-      return;
-    }
+    sendResult.hidden = true;
+  }
 
-    const subject = '아차사고 보고서';
-    const body = [
-      '아차사고 보고서를 전달합니다.',
-      '',
-      `작성일시: ${formatDate(pendingReport.createdAt)}`,
-      `녹음일시: ${pendingReport.recordedAt ? formatDate(pendingReport.recordedAt) : '음성 녹음 없음'}`,
-      `사고 유형 (참고): ${NearMissClassify.classify(pendingReport)}`,
-      '',
-      ...(pendingReport.details || []).flatMap(([label, value]) => [`${label}: ${value}`, '']),
-      '신고 내용:',
-      pendingReport.content,
-    ].join('\n');
-    const gmailParams = new URLSearchParams({
-      view: 'cm',
-      fs: '1',
-      to: recipients.join(','),
-      su: subject,
-      body,
-    });
-    previewGmailLink.href = `https://mail.google.com/mail/?${gmailParams.toString()}`;
-    previewGmailLink.tabIndex = 0;
+  // 실제 발송 없이 발송된 것처럼 보여 주는 시뮬레이션
+  let sending = false;
+  function simulateSend() {
+    sending = true;
+    previewGmailLink.disabled = true;
+    previewGmailLink.textContent = '보내는 중…';
+    sendResult.hidden = true;
+    setTimeout(() => {
+      sending = false;
+      previewGmailLink.disabled = false;
+      previewGmailLink.textContent = '이메일 전송하기';
+      sendResult.innerHTML = '';
+      const title = document.createElement('strong');
+      title.textContent = '✔ 메일을 보냈습니다';
+      const to = document.createElement('p');
+      to.textContent = `받는 사람: ${recipients.join(', ')}`;
+      const when = document.createElement('p');
+      when.textContent = `보낸 시각: ${formatDate(new Date().toISOString())}`;
+      sendResult.append(title, to, when);
+      sendResult.hidden = false;
+      toast('메일을 보냈습니다.');
+    }, 1200);
   }
 
   function addRecipient(value) {
@@ -348,12 +347,12 @@
       }
       return;
     }
+    if (sending) return;
     if (!commitRecipientInput()) {
-      event.preventDefault();
       recipientInput.focus();
       return;
     }
-    updateGmailLink();
+    simulateSend();
   });
 
   previewPdfButton.addEventListener('click', () => {
@@ -462,6 +461,7 @@
     });
     Profile.saveAdminToken(adminTokenField.value);
     toast('저장했습니다.');
+    if (!document.getElementById('tab-admin').hidden) AdminView.render();
   });
 
   // ---------- 오프라인 큐 ----------

@@ -692,9 +692,10 @@ textarea:focus {
 
 /* ===== 설정 (내 정보) ===== */
 .settings { margin-top: 20px; }
-.settings summary {
-  cursor: pointer;
-  font-weight: 600;
+.settings h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 700;
   color: var(--primary);
 }
 .settings label {
@@ -1159,3 +1160,23 @@ body.draft-open { overflow: hidden; }
   font-family: inherit;
   cursor: pointer;
 }
+
+/* 이메일 전송하기 버튼: 2칸 너비 + 발송 결과 */
+.preview-actions .btn-email {
+  grid-column: 1 / -1;
+  min-height: 60px;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.btn-email:disabled { opacity: 0.7; cursor: wait; }
+.send-result {
+  margin-top: 16px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: #ecfdf3;
+  border: 1px solid #a6e9c1;
+  color: #05603a;
+  line-height: 1.6;
+}
+.send-result p { margin: 2px 0 0; font-size: 0.92rem; }
+@media print { .send-result { display: none !important; } }

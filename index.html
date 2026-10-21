@@ -28,7 +28,7 @@
     <button type="button" role="tab" id="tab-btn-report" data-tab="report" aria-controls="tab-report" aria-selected="true">신고하기</button>
     <button type="button" role="tab" id="tab-btn-preview" data-tab="preview" aria-controls="tab-preview" aria-selected="false">보고서 미리보기</button>
     <button type="button" role="tab" id="tab-btn-stats" data-tab="stats" aria-controls="tab-stats" aria-selected="false">통계</button>
-    <button type="button" role="tab" id="tab-btn-admin" data-tab="admin" aria-controls="tab-admin" aria-selected="false">관리자</button>
+    <button type="button" role="tab" id="tab-btn-admin" data-tab="admin" aria-controls="tab-admin" aria-selected="false">마이페이지</button>
   </nav>
 
   <main class="container" id="tab-report" role="tabpanel" aria-labelledby="tab-btn-report">
@@ -62,8 +62,15 @@
       <ul id="history-list"></ul>
     </section>
 
-    <details class="card settings" id="settings">
-      <summary>내 정보 · 설정</summary>
+  </main>
+
+  <main class="container" id="tab-stats" role="tabpanel" aria-labelledby="tab-btn-stats" hidden>
+    <div id="stats-root"></div>
+  </main>
+
+  <main class="container" id="tab-admin" role="tabpanel" aria-labelledby="tab-btn-admin" hidden>
+    <section class="card settings" id="settings">
+      <h2>내 정보 · 설정</h2>
       <p class="card-sub">한 번만 입력하면 이후 신고마다 자동으로 들어갑니다.</p>
 
       <label for="profile-org">소속</label>
@@ -77,17 +84,11 @@
       <input type="text" id="profile-role" placeholder="예) 축로공" />
 
       <label for="admin-token">관리자 토큰 <span class="field-note">(관리자만)</span></label>
-      <input type="password" id="admin-token" autocomplete="off" placeholder="관리자 탭을 쓰려면 입력" />
+      <input type="password" id="admin-token" autocomplete="off" placeholder="관리자 기능을 쓰려면 입력" />
 
       <button type="button" id="save-settings" class="btn-secondary">저장</button>
-    </details>
-  </main>
+    </section>
 
-  <main class="container" id="tab-stats" role="tabpanel" aria-labelledby="tab-btn-stats" hidden>
-    <div id="stats-root"></div>
-  </main>
-
-  <main class="container" id="tab-admin" role="tabpanel" aria-labelledby="tab-btn-admin" hidden>
     <div id="admin-root"></div>
   </main>
 
@@ -119,8 +120,9 @@
       <div class="preview-actions">
         <button type="button" id="preview-edit" class="btn-secondary">수정하기</button>
         <button type="button" id="preview-pdf" class="btn-secondary" disabled>이 PC에 PDF로 저장</button>
-        <a id="preview-gmail" class="btn-submit btn-email" aria-disabled="true" target="_blank" rel="noopener noreferrer">Gmail에서 작성</a>
+        <button type="button" id="preview-gmail" class="btn-submit btn-email" aria-disabled="true">이메일 전송하기</button>
       </div>
+      <div id="send-result" class="send-result" role="status" hidden></div>
     </section>
   </main>
 
