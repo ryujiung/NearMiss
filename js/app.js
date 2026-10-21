@@ -28,10 +28,9 @@
       btn.setAttribute('aria-selected', String(selected));
       document.getElementById(btn.getAttribute('aria-controls')).hidden = !selected;
     });
-    if (name === 'stats') {
-      if (voice) voice.stop();
-      renderStats();
-    }
+    if (name !== 'report' && voice) voice.stop();
+    if (name === 'stats') renderStats();
+    if (name === 'admin') AdminView.render();
     window.scrollTo(0, 0);
   }
 
@@ -212,5 +211,7 @@
   loadSettings();
   renderHistory();
   flushPending();
-  showTab(location.hash === '#stats' ? 'stats' : 'report');
+  const TABS = ['report', 'stats', 'admin'];
+  const fromHash = location.hash.replace('#', '');
+  showTab(TABS.includes(fromHash) ? fromHash : 'report');
 })();

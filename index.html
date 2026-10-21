@@ -16,6 +16,7 @@
   <nav class="tabs" role="tablist">
     <button type="button" role="tab" id="tab-btn-report" data-tab="report" aria-controls="tab-report" aria-selected="true">신고하기</button>
     <button type="button" role="tab" id="tab-btn-stats" data-tab="stats" aria-controls="tab-stats" aria-selected="false">통계</button>
+    <button type="button" role="tab" id="tab-btn-admin" data-tab="admin" aria-controls="tab-admin" aria-selected="false">관리자</button>
   </nav>
 
   <main class="container" id="tab-report" role="tabpanel" aria-labelledby="tab-btn-report">
@@ -74,6 +75,10 @@
     <div id="stats-root"></div>
   </main>
 
+  <main class="container" id="tab-admin" role="tabpanel" aria-labelledby="tab-btn-admin" hidden>
+    <div id="admin-root"></div>
+  </main>
+
   <!-- 속보 초안 확인 — 제출 직후 이 화면이 먼저 열리고 그 다음 분석이 돈다 -->
   <section id="draft-panel" class="draft-panel" hidden aria-labelledby="draft-heading">
     <header class="draft-header">
@@ -89,6 +94,7 @@
   <script src="js/store.js"></script>
   <script src="js/brief-doc.js"></script>
   <script src="js/draft-view.js"></script>
+  <script src="js/admin.js"></script>
   <script src="js/classify.js"></script>
   <script src="js/stats.js"></script>
   <script src="js/voice-input.js"></script>
