@@ -100,12 +100,22 @@
       const result = await ReportStore.submit(report);
       form.reset();
       await renderHistory();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      toast(
-        result.queued
-          ? '지금은 연결이 안 되어 저장해 두었습니다. 연결되면 자동으로 전송됩니다.'
-          : '신고가 접수되었습니다. 감사합니다!'
-      );
+
+      if (result.queued) {
+        // 전송조차 못 했으면 초안 화면을 열 대상이 없다. 원문은 큐에 안전하게
+        // 남아 있고, 연결되면 전송된다.
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        toast('지금은 연결이 안 되어 저장해 두었습니다. 연결되면 자동으로 전송됩니다.');
+        return;
+      }
+
+      // 초안 화면을 먼저 열고, 분석은 그 안에서 돈다(사양 3.1)
+      DraftView.open(result.id, {
+        onClose: async (outcome) => {
+          await renderHistory();
+          if (outcome.submitted) toast('신고가 접수되었습니다. 감사합니다!');
+        },
+      });
     } catch (err) {
       console.error(err);
       toast('전송에 실패했습니다. 잠시 후 다시 시도해 주세요.');

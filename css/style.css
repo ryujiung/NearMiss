@@ -493,8 +493,17 @@ textarea.voice-active { border-color: var(--danger); background: #fffafa; }
   /* 화면 전용 요소는 종이에 남기지 않는다 */
   .app-header, .tabs, .mic-btn, .btn-submit, .btn-secondary,
   .settings, .history, .toast, .notice, .admin-toolbar,
-  #tab-report form, .draft-actions, .confirm-questions {
+  #tab-report form, .draft-actions, .confirm-questions,
+  .draft-header, .draft-banner, .photo-attach, .btn-retry, .btn-text {
     display: none !important;
+  }
+
+  /* 초안 패널이 열린 상태로 인쇄해도 문서만 남는다 */
+  .draft-panel {
+    position: static;
+    overflow: visible;
+    padding: 0;
+    background: #fff;
   }
 
   body { background: #fff; padding: 0; }
@@ -511,4 +520,135 @@ textarea.voice-active { border-color: var(--danger); background: #fffafa; }
   .ai-mark { display: none; }
   .doc-photos img { aspect-ratio: auto; max-height: 45mm; }
   .doc-risk-reason { background: transparent; }
+}
+
+/* ===== 속보 초안 확인 화면 ===== */
+/* 제출 직후 이 패널이 신고 화면 위를 덮는다. 작업자가 읽어야 할 것(확인 질문,
+   위험도)이 위에 오고, 제출 버튼은 스크롤 어디에서든 누를 수 있도록 하단 고정. */
+.draft-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--bg);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+body.draft-open { overflow: hidden; }
+
+.draft-header {
+  background: var(--primary);
+  color: #fff;
+  padding: calc(16px + env(safe-area-inset-top)) 16px 14px;
+}
+.draft-header h2 { margin: 0; font-size: 18px; }
+.draft-sub { margin: 4px 0 0; font-size: 13px; opacity: .85; }
+
+.draft-banner {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  border: 1px solid transparent;
+}
+.draft-banner.working  { background: #e8f0fb; color: #1f4e8c; border-color: #bcd3f0; }
+.draft-banner.failed   { background: #fde2e1; color: #a8140c; border-color: #f3b9b5; }
+.draft-banner.offline  { background: #fdf0d5; color: #8a5a00; border-color: #f0d79a; }
+
+/* 분석이 아직 안 끝난 칸 — 비어 보이는 이유를 알려준다 */
+.draft-doc.is-analyzing .doc-value.doc-empty::after { content: ' (분석 중)'; }
+
+/* ===== 확인 질문 ===== */
+.confirm-questions { margin-bottom: 14px; }
+.question {
+  background: #fff8e6;
+  border: 1px solid #f0d79a;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.question-head {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a5a00;
+  margin-bottom: 4px;
+}
+.question-text { margin: 0 0 8px; font-size: 15px; }
+.question-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.question-input {
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 16px;
+  font-family: inherit;
+}
+.btn-answer, .btn-skip {
+  flex: 1 1 0;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.btn-answer { background: var(--primary); color: #fff; border: 1px solid var(--primary); }
+.btn-skip { background: #fff; color: var(--muted); border: 1px solid var(--border); }
+
+.btn-retry {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--danger);
+  background: #fff;
+  color: var(--danger);
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* ===== 사진 첨부 ===== */
+.photo-attach { margin-top: 12px; }
+.btn-photo {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 1px dashed var(--primary);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--primary);
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-photo.disabled { border-color: var(--border); color: var(--muted); cursor: default; }
+.photo-input { display: none; }
+
+/* ===== 하단 고정 제출 ===== */
+.draft-actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.draft-actions .btn-submit { flex: 1; margin: 0; }
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  font-family: inherit;
+  padding: 10px 4px;
+  cursor: pointer;
+  text-decoration: underline;
 }

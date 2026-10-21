@@ -300,6 +300,12 @@ def get_draft(
         "draft": json.loads(row["draft_json"]) if row.get("draft_json") else None,
         "risk": row.get("risk"),
         "error": row.get("draft_error"),
+        # 사진을 함께 내려준다 — 작업자가 초안 화면에 다시 들어왔을 때 자기가
+        # 첨부한 사진이 안 보이면, 이미 2장인 줄 모르고 또 올리려 한다.
+        "photos": [
+            {"photo_id": p["id"], "url": f"/api/photos/{p['id']}"}
+            for p in db_module.list_photos(conn, report_id)
+        ],
     }
 
 

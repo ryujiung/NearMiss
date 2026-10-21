@@ -117,5 +117,16 @@ def test_post_on_ready_report_regenerates(client, report_id, capture_provider):
     assert capture_provider.call_count == 2
 
 
+def test_draft_polling_returns_attached_photos(client, report_id, capture_provider, png_bytes):
+    # 재진입한 작업자가 자기 사진을 못 보면 이미 2장인 줄 모르고 또 올리려 한다.
+    client.post(f"/api/reports/{report_id}/draft")
+    up = client.post(
+        f"/api/reports/{report_id}/photos",
+        files={"file": ("a.png", png_bytes, "image/png")},
+    ).json()
+    photos = _poll(client, report_id).json()["photos"]
+    assert [p["photo_id"] for p in photos] == [up["photo_id"]]
+
+
 def test_draft_polling_404_for_unknown_report(client, capture_provider):
     assert _poll(client, "없는-id").status_code == 404
