@@ -23,8 +23,35 @@
   // 이 에러가 나면 자동 재시작하지 않음
   const FATAL_ERRORS = ['not-allowed', 'service-not-allowed', 'audio-capture', 'network'];
 
+  /** mock 모드용: 정해진 문장을 실제 음성 인식처럼 조금씩 흘려보내는 가짜 인식기 */
+  function createScriptedRecognition(owner) {
+    return class {
+      start() {
+        const from = owner.scriptPos;
+        this.timer = setInterval(() => {
+          if (owner.scriptPos >= owner.script.length) return; // 다 말했으면 '완료'를 누를 때까지 대기
+          owner.scriptPos = Math.min(owner.script.length, owner.scriptPos + 1 + Math.floor(Math.random() * 3));
+          const spoken = owner.script.slice(from, owner.scriptPos);
+          this.onresult && this.onresult({ results: [Object.assign([{ transcript: spoken }], { isFinal: true })] });
+        }, 110);
+      }
+      stop() {
+        clearInterval(this.timer);
+        setTimeout(() => this.onend && this.onend(), 50);
+      }
+      abort() { clearInterval(this.timer); }
+    };
+  }
+
+  // 음성 인식이 '목업'을 비슷한 소리로 적는 경우까지 허용
+  const KEYWORD_RE = /목\s*업|목\s*엎|목\s*어|목\s*업|모\s*겁|모\s*컵|먹\s*업|mock\s*-?\s*up|mockup|mock/i;
+
   class VoiceInput {
     constructor(options = {}) {
+      this.script = options.script || null; // 있으면 '목업' 키워드(또는 마이크 미지원 시)에 이 문장을 말하는 것처럼 보여줌
+      this.keyword = options.keyword || '목업';
+      this.scripted = false;
+      this.scriptPos = 0;
       this.lang = options.lang || 'ko-KR';
       this.onStatusChange = options.onStatusChange || function () {};
       this.onError = options.onError || function () {};
@@ -57,6 +84,10 @@
 
     start() {
       if (this.listening) return;
+      if (SpeechRecognition) {
+        this.scripted = false;
+        this.scriptPos = 0;
+      }
       this.listening = true;
       this.silentRestarts = 0;
       this.onStatusChange({ listening: true });
@@ -90,7 +121,8 @@
 
     /** 인식 세션 하나 시작 (자동 재시작 시에도 호출됨) */
     _startSession() {
-      const rec = new SpeechRecognition();
+      const useScript = this.script && (this.scripted || !SpeechRecognition);
+      const rec = useScript ? new (createScriptedRecognition(this))() : new SpeechRecognition();
       rec.lang = this.lang;
       rec.interimResults = true;      // 말하는 도중에도 글자를 보여줌
       rec.maxAlternatives = 1;
@@ -112,6 +144,18 @@
         }
         this.finalText = final;
         this.heardSomething = true;
+
+        if (this.script && !this.scripted && KEYWORD_RE.test(final + interim)) {
+          // 키워드를 말하면 실제 인식을 끊고 녹음본 재생으로 전환
+          this.scripted = true;
+          this.scriptPos = 0;
+          rec.onresult = rec.onend = rec.onerror = null;
+          rec.abort();
+          this.recognition = null;
+          this._render('');
+          this._startSession();
+          return;
+        }
         this._render(final + interim);
       };
 

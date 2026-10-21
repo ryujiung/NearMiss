@@ -3,7 +3,6 @@
 
   const form = document.getElementById('nearmiss-form');
   const content = document.getElementById('content');
-  const exampleButton = document.getElementById('load-report-example');
   const micBtn = document.getElementById('mic-btn');
   const micLabel = micBtn.querySelector('.mic-label');
   const notice = document.getElementById('voice-support-notice');
@@ -21,7 +20,6 @@
   const recipients = [];
   let pendingReport = null;
   let voiceRecordingStartedAt = null;
-  const REPORT_EXAMPLE = '오늘 오후 2시쯤 2공장 3라인 컨베이어 옆에서 바닥에 기름이 새어 있어서 미끄러질 뻔했어요. 배관 연결부에서 새는 것 같고, 미끄럼 방지 매트를 깔면 좋겠어요.';
 
   // ---------- 공통 UI ----------
   let toastTimer;
@@ -152,26 +150,20 @@
 
   function renderPreview(report) {
     previewRoot.replaceChildren();
+    const reportDetails = report.details || null;
 
     const documentCard = document.createElement('article');
     documentCard.className = 'report-document';
 
     const title = document.createElement('h3');
-    title.textContent = report.isExample ? '아차사고 보고서 예시' : '아차사고 보고서';
+    title.textContent = '아차사고 보고서';
     documentCard.appendChild(title);
-
-    if (report.isExample) {
-      const exampleNotice = document.createElement('p');
-      exampleNotice.className = 'example-notice';
-      exampleNotice.textContent = '신고하기 예시를 바탕으로 작성한 샘플입니다. 실제 신고 내용과 다를 수 있으니 접수 전 확인해 주세요.';
-      documentCard.appendChild(exampleNotice);
-    }
 
     const metadata = document.createElement('dl');
     metadata.className = 'report-document-meta';
     [
       ['작성일시', formatDate(report.createdAt)],
-      ['녹음일시', report.recordedAt ? formatDate(report.recordedAt) : '음성 녹음 없음'],
+      ['녹음일시', report.recordedAt ? formatDate(report.recordedAt) : report.recordedAt === undefined ? '기록 없음' : '음성 녹음 없음 (직접 입력)'],
       ['사고 유형 (참고)', NearMissClassify.classify(report)],
     ].forEach(([label, value]) => {
       const item = document.createElement('div');
@@ -184,10 +176,20 @@
     });
     documentCard.appendChild(metadata);
 
-    if (report.details) {
+    // 속보 초안이 있으면 초안 화면·관리자 상세와 같은 전체 속보 문서를 그대로 쓴다.
+    if (report.draft) {
+      const briefHost = document.createElement('div');
+      briefHost.className = 'preview-brief';
+      BriefDoc.render(briefHost, report, { editable: false });
+      const briefTitle = briefHost.querySelector('.doc-title');
+      if (briefTitle) briefTitle.remove();
+      documentCard.appendChild(briefHost);
+    }
+
+    if (reportDetails) {
       const details = document.createElement('dl');
       details.className = 'report-details';
-      report.details.forEach(([label, value]) => {
+      reportDetails.forEach(([label, value]) => {
         const item = document.createElement('div');
         const term = document.createElement('dt');
         term.textContent = label;
@@ -200,7 +202,7 @@
     }
 
     const contentTitle = document.createElement('h4');
-    contentTitle.textContent = report.details ? '신고 원문' : '신고 내용';
+    contentTitle.textContent = report.draft || reportDetails ? '신고 원문' : '신고 내용';
     const contentBody = document.createElement('p');
     contentBody.className = 'report-document-content';
     contentBody.textContent = report.content;
@@ -211,53 +213,45 @@
   }
 
   // ---------- 음성 입력 ----------
-  const availability = VoiceInput.checkAvailability();
   let voice = null;
 
-  if (availability.ok) {
-    voice = new VoiceInput({
-      lang: 'ko-KR',
-      onStatusChange: ({ listening }) => {
-        if (listening && !voiceRecordingStartedAt) {
-          voiceRecordingStartedAt = new Date().toISOString();
-        }
-        micBtn.classList.toggle('listening', listening);
-        micBtn.setAttribute('aria-pressed', String(listening));
-        micLabel.textContent = listening ? '듣는 중… 눌러서 완료' : '눌러서 말하기';
-      },
-      onError: (msg) => toast(msg),
-    });
-    voice.bind(content, micBtn);
-  } else {
-    micBtn.hidden = true;
-    notice.textContent = availability.reason;
-    notice.hidden = false;
+  async function loadMockScript() {
+    try {
+      const res = await fetch('/api/mock-voice');
+      return res.ok ? (await res.json()).text || null : null;
+    } catch (e) {
+      return null;
+    }
   }
+
+  function setupVoice(script) {
+    const availability = VoiceInput.checkAvailability();
+    if (availability.ok || script) {
+      voice = new VoiceInput({
+        lang: 'ko-KR',
+        script,
+        onStatusChange: ({ listening }) => {
+          if (listening && !voiceRecordingStartedAt) {
+            voiceRecordingStartedAt = new Date().toISOString();
+          }
+          micBtn.classList.toggle('listening', listening);
+          micBtn.setAttribute('aria-pressed', String(listening));
+          micLabel.textContent = listening ? '듣는 중… 눌러서 완료' : '눌러서 말하기';
+        },
+        onError: (msg) => toast(msg),
+      });
+      voice.bind(content, micBtn);
+    } else {
+      micBtn.hidden = true;
+      notice.textContent = availability.reason;
+      notice.hidden = false;
+    }
+  }
+
+  loadMockScript().then(setupVoice);
 
   // ---------- 폼 ----------
   content.addEventListener('input', () => content.classList.remove('invalid'));
-
-  exampleButton.addEventListener('click', () => {
-    content.value = REPORT_EXAMPLE;
-    content.classList.remove('invalid');
-    voiceRecordingStartedAt = null;
-    pendingReport = {
-      content: REPORT_EXAMPLE,
-      createdAt: new Date().toISOString(),
-      recordedAt: null,
-      isExample: true,
-      details: [
-        ['발생 시각', '오늘 오후 2시경'],
-        ['발생 장소', '2공장 3라인 컨베이어 옆'],
-        ['위험 내용', '바닥에 기름이 새어 있어 미끄러질 뻔함'],
-        ['추정 원인', '배관 연결부에서 기름이 새는 것으로 추정'],
-        ['개선 제안', '배관 연결부 누유 점검 및 미끄럼 방지 매트 설치'],
-      ],
-    };
-    renderPreview(pendingReport);
-    history.replaceState(null, '', '#preview');
-    showTab('preview');
-  });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -274,10 +268,11 @@
 
     // 미리보기·메일 경로가 쓰는 로컬 사본. 서버 저장과 별개로 유지해, 보고서
     // 미리보기 탭과 Gmail 발송이 그대로 동작한다.
+    const recordedAt = voiceRecordingStartedAt || null;
     pendingReport = {
       content: text,
       createdAt: new Date().toISOString(),
-      recordedAt: voiceRecordingStartedAt || (pendingReport && pendingReport.recordedAt) || null,
+      recordedAt,
     };
     voiceRecordingStartedAt = null;
     renderPreview(pendingReport);
@@ -286,6 +281,7 @@
 
     try {
       const result = await ReportStore.submit(report);
+      if (result.id) saveRecordedAt(result.id, recordedAt);
       form.reset();
       await renderHistory();
 
@@ -314,6 +310,16 @@
     }
   });
 
+  /** 내 신고 목록에서 서버가 가려 둔 인적사항(reporter, identity_line)을 가져온다. */
+  async function ownReportIdentity(reportId) {
+    try {
+      const mine = (await ReportStore.myReports()).find((item) => item.id === reportId);
+      return mine ? { reporter: mine.reporter, identity_line: mine.identity_line } : {};
+    } catch (err) {
+      return {};
+    }
+  }
+
   /** 서버의 최신 초안을 미리보기·메일 경로가 쓰는 사본에 반영한다. */
   async function syncPreviewFromServer(reportId) {
     try {
@@ -324,7 +330,13 @@
       if (!res.ok) return;
       const body = await res.json();
       if (!body.draft) return;
-      pendingReport = { ...(pendingReport || {}), draft: body.draft, risk: body.risk };
+      pendingReport = {
+        ...(pendingReport || {}),
+        draft: body.draft,
+        risk: body.risk,
+        photos: body.photos || [],
+        ...(await ownReportIdentity(reportId)),
+      };
       renderPreview(pendingReport);
     } catch (err) {
       console.warn('[니어미스] 미리보기 동기화 실패', err);
@@ -386,6 +398,41 @@
     submitted: '제출됨',
   };
 
+  // 녹음 시작 시각은 서버에 저장되지 않으므로 이 브라우저에 신고 id별로 남긴다.
+  // 값이 null이면 직접 입력한 신고, 항목이 없으면 기록이 없는 신고다.
+  const RECORDED_AT_KEY = 'nearmiss-recorded-at';
+  function readRecordedAtMap() {
+    try {
+      return JSON.parse(localStorage.getItem(RECORDED_AT_KEY)) || {};
+    } catch (err) {
+      return {};
+    }
+  }
+  function saveRecordedAt(reportId, recordedAt) {
+    const map = readRecordedAtMap();
+    map[reportId] = recordedAt;
+    try {
+      localStorage.setItem(RECORDED_AT_KEY, JSON.stringify(map));
+    } catch (err) {
+      console.warn('[니어미스] 녹음일시 저장 실패', err);
+    }
+  }
+
+  /** 내 신고 내역의 한 건을 보고서 미리보기 탭에 연다. */
+  async function openReportPreview(r) {
+    voiceRecordingStartedAt = null;
+    const map = readRecordedAtMap();
+    pendingReport = {
+      content: r.content || r.description || '',
+      createdAt: r.created_at || r.createdAt,
+      recordedAt: r.id && r.id in map ? map[r.id] : undefined,
+    };
+    renderPreview(pendingReport);
+    history.replaceState(null, '', '#preview');
+    showTab('preview');
+    if (r.id) await syncPreviewFromServer(r.id);
+  }
+
   async function renderHistory() {
     const list = await ReportStore.myReports();
     historyList.innerHTML = '';
@@ -411,8 +458,20 @@
       // 이전 버전(여러 칸 입력)으로 저장된 내역도 표시
       body.textContent = r.content || r.description || '';
 
-      li.append(meta, body);
+      const main = document.createElement('div');
+      main.className = 'history-main';
+      main.append(meta, body);
 
+      const previewBtn = document.createElement('button');
+      previewBtn.type = 'button';
+      previewBtn.className = 'btn-history-preview';
+      previewBtn.textContent = '보고서 미리보기';
+      previewBtn.addEventListener('click', () => openReportPreview(r));
+
+      const row = document.createElement('div');
+      row.className = 'history-row';
+      row.append(main, previewBtn);
+      li.append(row);
       // 제출 전 건은 눌러서 초안 화면으로 돌아간다(사양 3.8). 이 경로가 없으면
       // 새로고침하거나 '나중에 하기'를 누른 신고, 오프라인 큐에서 올라온 신고가
       // 영구 미제출로 남아 통계·관리자 큐 어디에도 도달하지 않는다.

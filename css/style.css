@@ -232,7 +232,6 @@ textarea.voice-active { border-color: var(--danger); background: #fffafa; }
 /* ---------- 보고서 미리보기 ---------- */
 .report-preview h2 { font-size: 1.2rem; margin: 4px 0; }
 .preview-description { margin: 0 0 16px; color: var(--muted); font-size: 0.9rem; }
-.example-button { width: 100%; margin-top: 10px; color: var(--primary); }
 .recipient-section { margin-bottom: 16px; }
 .recipient-section .main-label { margin-bottom: 6px; font-size: 1rem; }
 .recipient-list {
@@ -279,14 +278,6 @@ textarea.voice-active { border-color: var(--danger); background: #fffafa; }
 }
 .report-document h3 { margin: 0 0 16px; font-size: 1.2rem; text-align: center; }
 .report-document h4 { margin: 20px 0 8px; font-size: 1rem; }
-.example-notice {
-  margin: 0 0 16px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #fff8e1;
-  color: #6d5300;
-  font-size: 0.85rem;
-}
 .report-document-meta { margin: 0; border-top: 1px solid var(--border); }
 .report-document-meta div {
   display: grid;
@@ -306,7 +297,7 @@ textarea.voice-active { border-color: var(--danger); background: #fffafa; }
   border-bottom: 1px solid var(--border);
 }
 .report-details dt { color: var(--muted); font-size: 0.9rem; }
-.report-details dd { margin: 0; }
+.report-details dd { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
 .report-document-content { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .preview-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
 .preview-actions .btn-submit { margin: 0; }
@@ -626,7 +617,6 @@ textarea:focus {
 
 .report-preview > h2 { font-size: 1.45rem; }
 .preview-description { margin-bottom: 20px; line-height: 1.7; }
-.example-button { margin: 0 0 20px; }
 .recipient-list {
   min-height: 54px;
   border-color: #d9e3ee;
@@ -1180,3 +1170,25 @@ body.draft-open { overflow: hidden; }
 }
 .send-result p { margin: 2px 0 0; font-size: 0.92rem; }
 @media print { .send-result { display: none !important; } }
+
+/* 내 신고 내역: 우측 보고서 미리보기 버튼 */
+.history-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.history-main { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.btn-history-preview {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--primary);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.btn-history-preview:hover { background: var(--primary); color: #fff; }
+
+/* 보고서 미리보기 안의 전체 속보 문서 */
+.preview-brief { margin-top: 16px; }
+.preview-brief .brief-doc { margin: 0; padding: 0; border: 0; box-shadow: none; background: transparent; }

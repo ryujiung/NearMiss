@@ -6,7 +6,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -40,6 +40,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.mount("/css", StaticFiles(directory=str(BASE_DIR / "css")), name="css")
     app.mount("/js", StaticFiles(directory=str(BASE_DIR / "js")), name="js")
+
+    @app.get("/api/mock-voice")
+    def mock_voice() -> dict:
+        # mock 모드에서만 rec_mock의 받아쓰기 텍스트를 내려줘 '눌러서 말하기'를 흉내 낸다.
+        if app.state.settings.llm_mode != "mock":
+            raise HTTPException(status_code=404)
+        scripts = sorted((BASE_DIR / "rec_mock").glob("*.txt"))
+        if not scripts:
+            raise HTTPException(status_code=404)
+        return {"text": scripts[0].read_text(encoding="utf-8").strip()}
 
     @app.get("/")
     def index() -> FileResponse:
