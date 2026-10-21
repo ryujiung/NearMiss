@@ -90,8 +90,20 @@ def get_conn(path: str) -> sqlite3.Connection:
     전역 폴백을 두지 않는다 — "마지막에 init_db가 설정한 경로"에 의존하면 같은
     프로세스에 앱이 여러 개 떠 있을 때 서로의 DB를 덮어쓴다. 그 결함을 한 번
     고쳤으므로, 인자를 필수로 만들어 다시 생길 수 없게 한다.
+
+    `check_same_thread=False`가 필요한 이유: FastAPI는 동기 의존성
+    (get_db_conn)과 동기 핸들러를 **서로 다른 스레드풀 스레드**에서 돌릴 수 있다.
+    그러면 의존성이 만든 연결을 핸들러가 다른 스레드에서 쓰게 되고 sqlite3가
+    ProgrammingError를 던진다 — 스레드 배정에 따라 간헐적으로 터지므로 한 스레드에
+    머무는 TestClient로는 잡히지 않는다.
+
+    이 플래그를 켜도 안전한 이유는 **연결이 동시에 쓰이지 않기** 때문이다. 연결은
+    요청 하나가 열고(get_db_conn), 그 요청만 순차적으로 쓰고, 끝나면 닫는다.
+    공유되는 것은 "어느 스레드에서 쓰이는가"뿐이고 동시 접근은 없다. 이 전제가
+    깨지면(연결을 캐싱하거나 여러 요청이 공유하면) 플래그를 켠 채로는 데이터가
+    깨질 수 있으니, 연결을 보관하지 말 것.
     """
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 

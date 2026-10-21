@@ -92,7 +92,9 @@
       startPolling();
     } catch (err) {
       console.error(err);
-      setBanner('답변을 보내지 못했습니다. 이대로 제출해도 됩니다.', 'failed');
+      state.requestFailed = true;
+      paint();
+      setBanner('답변을 보내지 못했습니다. 다시 시도하거나 이대로 제출해도 됩니다.', 'failed');
     }
   }
 
@@ -206,10 +208,15 @@
     const questions = Array.isArray(draft.questions) ? draft.questions : [];
     if (questions.length) container.append(questionsBlock(questions));
 
-    if (state.status === 'failed') {
+    // 분석이 실패했거나 요청 자체가 서버에 닿지 못한 경우 — 둘 다 되돌릴
+    // 길이 있어야 한다.
+    if (state.status === 'failed' || state.requestFailed) {
       const retry = el('button', 'btn-retry', '다시 분석');
       retry.type = 'button';
-      retry.addEventListener('click', requestDraft);
+      retry.addEventListener('click', () => {
+        state.requestFailed = false;
+        requestDraft();
+      });
       container.append(retry);
     }
 
@@ -264,6 +271,7 @@
     try {
       const body = await fetchDraft(state.reportId);
       state.status = body.status;
+      state.requestFailed = false;
       state.report.draft = body.draft || state.report.draft || {};
       state.report.draft.risk = body.risk ?? state.report.draft.risk;
       if (body.photos) state.report.photos = body.photos;
@@ -293,7 +301,14 @@
       startPolling();
     } catch (err) {
       console.error(err);
-      setBanner('분석을 요청하지 못했습니다. 이대로 제출해도 됩니다.', 'failed');
+      // 일시적인 연결 실패가 영구적인 막힘이 되면 안 된다. 상태에 표시해
+      // 재시도 버튼이 나오게 하고, 다시 눌러 볼 수 있게 한다.
+      state.requestFailed = true;
+      paint();
+      setBanner(
+        '서버에 연결하지 못해 분석을 시작하지 못했습니다. 다시 시도하거나 이대로 제출해도 됩니다.',
+        'failed'
+      );
     }
   }
 
@@ -325,6 +340,7 @@
         status: 'draft',
         report: { draft: {}, photos: [], reporter: null },
         timer: null,
+        requestFailed: false,
         pollStartedAt: Date.now(),
         onClose: opts.onClose || null,
       };

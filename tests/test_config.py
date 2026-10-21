@@ -62,3 +62,34 @@ def test_get_settings_reads_dotenv(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     assert get_settings().model == "from-dotenv"
+
+
+def test_connection_can_be_used_from_another_thread(tmp_path):
+    """FastAPI는 의존성과 핸들러를 서로 다른 스레드풀 스레드에서 돌릴 수 있다.
+
+    get_db_conn이 yield한 연결을 핸들러가 다른 스레드에서 쓰면 sqlite3가
+    ProgrammingError를 던진다 — 스레드 배정에 따라 간헐적으로 터지고, TestClient는
+    한 스레드에 머물러서 자동 테스트가 못 잡는다. 실제로 브라우저에서
+    POST /api/reports가 500으로 터지는 것을 보고 찾았다.
+    """
+    import threading
+
+    from server import db as db_module
+
+    path = str(tmp_path / "threads.db")
+    db_module.init_db(path)
+    conn = db_module.get_conn(path)
+    errors = []
+
+    def use_it():
+        try:
+            conn.execute("SELECT COUNT(*) FROM reports").fetchone()
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    worker = threading.Thread(target=use_it)
+    worker.start()
+    worker.join()
+    conn.close()
+
+    assert not errors, f"다른 스레드에서 쓸 수 없다: {errors[0]}"
