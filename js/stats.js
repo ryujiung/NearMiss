@@ -1,23 +1,23 @@
 /**
  * 통계 화면 렌더링 (외부 차트 라이브러리 없이 HTML/CSS로 그림)
+ *
+ * 집계는 서버(`GET /api/stats`)가 한다. 이 모듈은 받은 수치를 그리기만 한다.
+ *
+ * 왜 클라이언트에서 집계하지 않는가: 통계 탭은 토큰 없이 열리고 남이 신고한
+ * 건까지 집계한다. 집계를 여기서 하려면 전체 레코드를 받아야 하는데, 원문에는
+ * 작업자가 말로 흘린 이름·소속이 섞여 있을 수 있다 — 아무에게나 전원의 신고
+ * 내용이 내려가는 구조가 된다(사양 3.11).
  */
 (function (global) {
   'use strict';
 
-  const DAY = 86400000;
-  const HOUR_BIN = 3; // 시간대 차트 구간 (시간)
+  const HOUR_BIN = 3; // 서버의 집계 구간과 같아야 한다
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
     if (text != null) node.textContent = text;
     return node;
-  }
-
-  function startOfDay(d) {
-    const x = new Date(d);
-    x.setHours(0, 0, 0, 0);
-    return x;
   }
 
   function fmt(n) {
@@ -53,23 +53,21 @@
     return details;
   }
 
-  function tiles(reports, now) {
-    const today = startOfDay(now);
-    const weekStart = new Date(today.getTime() - ((today.getDay() + 6) % 7) * DAY); // 월요일 시작
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const count = (from) => reports.filter((r) => new Date(r.createdAt) >= from).length;
-
+  function tiles(stats) {
     const wrap = el('div', 'tiles');
 
     const hero = el('div', 'card tile tile-hero');
-    hero.append(el('div', 'tile-label', '전체 신고'), el('div', 'tile-value', `${fmt(reports.length)}건`));
+    hero.append(
+      el('div', 'tile-label', '전체 신고'),
+      el('div', 'tile-value', `${fmt(stats.total)}건`)
+    );
     wrap.append(hero);
 
     const row = el('div', 'tile-row');
     [
-      ['오늘', count(today)],
-      ['이번 주', count(weekStart)],
-      ['이번 달', count(monthStart)],
+      ['오늘', stats.today],
+      ['이번 주', stats.week],
+      ['이번 달', stats.month],
     ].forEach(([label, value]) => {
       const t = el('div', 'card tile');
       t.append(el('div', 'tile-label', label), el('div', 'tile-value', `${fmt(value)}건`));
@@ -152,81 +150,82 @@
     return list;
   }
 
-  // ---------- 차트별 데이터 ----------
+  // ---------- 서버 집계를 차트 아이템 모양으로 ----------
+  // 차트가 기대하는 모양은 { label, fullLabel?, value } 다. 서버가 주는 모양을
+  // 그대로 쓰지 않는 이유는 축 레이블이 화면마다 다르기 때문이다.
 
-  function dailyItems(reports, now) {
-    const today = startOfDay(now);
-    const counts = new Map();
-    reports.forEach((r) => {
-      const key = startOfDay(r.createdAt).getTime();
-      counts.set(key, (counts.get(key) || 0) + 1);
+  function dailyItems(daily) {
+    return daily.map((d) => {
+      const [, month, day] = d.date.split('-');
+      return {
+        label: String(Number(day)),
+        fullLabel: `${Number(month)}/${Number(day)}`,
+        value: d.value,
+      };
     });
-    const items = [];
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(today.getTime() - i * DAY);
-      items.push({
-        label: String(d.getDate()),
-        fullLabel: `${d.getMonth() + 1}/${d.getDate()}`,
-        value: counts.get(d.getTime()) || 0,
-      });
-    }
-    return items;
   }
 
-  function categoryItems(reports) {
-    const counts = new Map(NearMissClassify.names.map((n) => [n, 0]));
-    reports.forEach((r) => {
-      const c = NearMissClassify.classify(r);
-      counts.set(c, (counts.get(c) || 0) + 1);
-    });
-    return [...counts.entries()]
-      .filter(([, v]) => v > 0)
-      .map(([label, value]) => ({ label, value }))
-      .sort((a, b) => b.value - a.value);
+  function categoryItems(category) {
+    return category.map((c) => ({ label: c.label, value: c.value }));
   }
 
-  function hourlyItems(reports) {
-    const bins = Array.from({ length: 24 / HOUR_BIN }, () => 0);
-    reports.forEach((r) => {
-      bins[Math.floor(new Date(r.createdAt).getHours() / HOUR_BIN)]++;
-    });
-    return bins.map((value, i) => {
-      const from = i * HOUR_BIN;
-      return { label: `${from}시`, fullLabel: `${from}~${from + HOUR_BIN}시`, value };
-    });
+  function hourlyItems(hourly) {
+    return hourly.map((h) => ({
+      label: `${h.from}시`,
+      fullLabel: `${h.from}~${h.to}시`,
+      value: h.value,
+    }));
+  }
+
+  function riskItems(risk) {
+    return risk.map((r) => ({ label: r.label, value: r.value }));
   }
 
   // ---------- 화면 ----------
 
-  function render(container, reports, { localOnly } = {}) {
+  function render(container, stats, options) {
+    const opts = options || {};
     container.innerHTML = '';
-    const now = new Date();
 
-    if (localOnly) {
-      container.append(el('div', 'notice', '아직 서버가 연결되지 않아 이 기기에서 신고한 내역만 집계합니다.'));
-    }
-
-    if (!reports.length) {
+    if (!stats || !stats.total) {
       container.append(el('p', 'empty-state', '아직 신고된 내역이 없습니다.'));
       return;
     }
 
-    container.append(tiles(reports, now));
+    container.append(tiles(stats));
 
-    const daily = dailyItems(reports, now);
-    const c1 = card('일별 신고 건수', `최근 14일 (${daily[0].fullLabel} ~ ${daily[13].fullLabel})`);
+    const daily = dailyItems(stats.daily);
+    const c1 = card(
+      '일별 신고 건수',
+      `최근 ${daily.length}일 (${daily[0].fullLabel} ~ ${daily[daily.length - 1].fullLabel})`
+    );
     c1.append(columnChart(daily), tableView(daily));
     container.append(c1);
 
-    const cats = categoryItems(reports);
-    const c2 = card('유형별 신고', '신고 내용의 키워드로 추정한 유형');
-    c2.append(barChart(cats), tableView(cats));
+    // 위험도 분포 — 0건인 등급도 서버가 내려주므로 세 칸이 항상 보인다.
+    // 사라지면 "아직 안 들어왔다"와 "집계에서 빠졌다"를 구분할 수 없다.
+    const risk = riskItems(stats.risk);
+    const c2 = card('위험도 분포', 'AI가 일관된 기준으로 1차 분류한 결과');
+    c2.append(barChart(risk), tableView(risk));
     container.append(c2);
 
-    const hourly = hourlyItems(reports);
-    const c3 = card('시간대별 신고', `신고 시각 기준, ${HOUR_BIN}시간 단위`);
-    c3.append(columnChart(hourly), tableView(hourly));
-    container.append(c3);
+    const cats = categoryItems(stats.category);
+    if (cats.length) {
+      const c3 = card('유형별 신고', '신고 내용에서 추정한 사고 유형');
+      c3.append(barChart(cats), tableView(cats));
+      container.append(c3);
+    }
+
+    const hourly = hourlyItems(stats.hourly);
+    const c4 = card('시간대별 신고', `신고 시각 기준, ${HOUR_BIN}시간 단위`);
+    c4.append(columnChart(hourly), tableView(hourly));
+    container.append(c4);
+
+    if (opts.period) {
+      container.append(
+        el('p', 'stats-period-note', opts.period === 'week' ? '최근 7일 기준' : '최근 30일 기준')
+      );
+    }
   }
 
   // 차트 밖을 누르면 툴팁 닫기 (모바일)

@@ -43,10 +43,12 @@
     })
   );
 
-  async function renderStats() {
+  async function renderStats(period) {
     try {
-      const reports = await ReportStore.fetchAll();
-      NearMissStats.render(statsRoot, reports, { localOnly: ReportStore.isLocalOnly });
+      const params = period ? `?period=${encodeURIComponent(period)}` : '';
+      const res = await fetch(`/api/stats${params}`);
+      if (!res.ok) throw new Error(`통계 조회 실패: ${res.status}`);
+      NearMissStats.render(statsRoot, await res.json(), { period });
     } catch (err) {
       console.error(err);
       statsRoot.textContent = '통계를 불러오지 못했습니다.';
