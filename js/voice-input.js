@@ -85,7 +85,8 @@
     start() {
       if (this.listening) return;
       if (SpeechRecognition) {
-        this.scripted = false;
+        // 마이크를 쓸 수 없는 환경(비보안 주소 등)에서는 키워드를 들을 수 없으니 바로 녹음본 재생
+        this.scripted = !!this.script && !VoiceInput.checkAvailability().ok;
         this.scriptPos = 0;
       }
       this.listening = true;
