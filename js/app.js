@@ -249,6 +249,174 @@
 
   loadMockScript().then(setupVoice);
 
+  // ---------- 사진 첨부 ----------
+  // 속보 양식의 사진 칸이 2개라 2장까지 받는다. 고른 사진은 먼저 이 기기에서
+  // 줄여 두고(미리보기·PDF에 바로 쓰고), 신고가 서버에 저장되면 그때 올린다.
+  const MAX_PHOTOS = 2;
+  const PHOTO_MAX_EDGE = 1600; // 긴 변 기준 — 서버 한도(10MB)를 넉넉히 밑돈다
+  const photoThumbs = document.getElementById('photo-thumbs');
+  const photoCount = document.getElementById('photo-count');
+  const photoInputs = [
+    document.getElementById('photo-camera'),
+    document.getElementById('photo-gallery'),
+  ];
+  let selectedPhotos = []; // { blob, dataUrl }
+
+  /**
+   * 사진을 JPEG로 줄인다. 휴대폰 원본은 수 MB라 그대로 올리면 느리고, 서버가
+   * 받지 않는 형식(HEIC 등)도 여기서 JPEG로 바뀐다. 브라우저가 해석하지 못하는
+   * 파일이면 null을 돌려준다.
+   */
+  function shrinkPhoto(file) {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        canvas.toBlob((blob) => resolve(blob ? { blob, dataUrl } : null), 'image/jpeg', 0.85);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      img.src = url;
+    });
+  }
+
+  function renderPhotoThumbs() {
+    photoThumbs.replaceChildren();
+    selectedPhotos.forEach((photo, index) => {
+      const item = document.createElement('div');
+      item.className = 'photo-thumb';
+      const img = document.createElement('img');
+      img.src = photo.dataUrl;
+      img.alt = `첨부 사진 ${index + 1}`;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'photo-remove';
+      remove.setAttribute('aria-label', `사진 ${index + 1} 삭제`);
+      remove.textContent = '×';
+      remove.addEventListener('click', () => {
+        selectedPhotos.splice(index, 1);
+        renderPhotoThumbs();
+      });
+      item.append(img, remove);
+      photoThumbs.appendChild(item);
+    });
+    const full = selectedPhotos.length >= MAX_PHOTOS;
+    photoCount.textContent = `${selectedPhotos.length}/${MAX_PHOTOS}`;
+    photoInputs.forEach((input) => {
+      input.disabled = full;
+      input.closest('label').classList.toggle('disabled', full);
+    });
+  }
+
+  photoInputs.forEach((input) => {
+    input.addEventListener('change', async () => {
+      const files = [...(input.files || [])];
+      input.value = ''; // 같은 사진을 지웠다가 다시 고를 수 있게
+      const room = MAX_PHOTOS - selectedPhotos.length;
+      if (files.length > room) toast(`사진은 ${MAX_PHOTOS}장까지 첨부할 수 있습니다.`);
+      for (const file of files.slice(0, Math.max(0, room))) {
+        const photo = await shrinkPhoto(file);
+        if (photo) selectedPhotos.push(photo);
+        else toast('이 사진 형식은 열 수 없습니다. 다른 사진을 골라 주세요.');
+      }
+      renderPhotoThumbs();
+    });
+  });
+
+  /** 저장된 신고에 사진을 올린다. 실패해도 신고 자체는 이미 저장되어 있다. */
+  async function uploadPhotos(reportId, photos) {
+    let failed = 0;
+    for (const [index, photo] of photos.entries()) {
+      const body = new FormData();
+      body.append('file', photo.blob, `photo-${index + 1}.jpg`);
+      try {
+        const res = await fetch(`/api/reports/${reportId}/photos`, {
+          method: 'POST',
+          headers: Profile.ownerHeaders(),
+          body,
+        });
+        if (!res.ok) throw new Error(`사진 업로드 실패: ${res.status}`);
+      } catch (err) {
+        console.warn('[니어미스] 사진 업로드 실패', err);
+        failed += 1;
+      }
+    }
+    if (failed) toast(`사진 ${failed}장을 서버에 올리지 못했습니다. 미리보기에는 그대로 보입니다.`);
+  }
+
+  // ---------- 보고서 작성 중 화면 ----------
+  // 신고 직후 결과가 순식간에 튀어나오면 무엇이 일어났는지 알기 어렵다. 최소
+  // 시간 동안 작성 중임을 보여 주고, 그 사이 저장·사진 업로드·초안 생성을 끝낸다.
+  const WRITING_MIN_MS = 2500;
+  // 실제 AI는 10~15초 걸린다. 그동안 덮어 두지 않고 초안 화면의 '분석 중'
+  // 안내로 넘긴다 — 작업자가 일시·인적사항 칸은 먼저 볼 수 있어야 한다.
+  const WRITING_MAX_MS = 6000;
+  const WRITING_STEPS = [
+    '신고 내용을 읽고 있습니다',
+    '일시·장소를 정리하고 있습니다',
+    '원인과 대책을 작성하고 있습니다',
+  ];
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function showWriting() {
+    const overlay = document.createElement('div');
+    overlay.className = 'writing-overlay';
+    overlay.setAttribute('role', 'status');
+    overlay.setAttribute('aria-live', 'polite');
+    const box = document.createElement('div');
+    box.className = 'writing-box';
+    const spinner = document.createElement('div');
+    spinner.className = 'writing-spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+    const title = document.createElement('p');
+    title.className = 'writing-title';
+    title.textContent = '보고서 작성 중…';
+    const step = document.createElement('p');
+    step.className = 'writing-step';
+    step.textContent = WRITING_STEPS[0];
+    const bar = document.createElement('div');
+    bar.className = 'writing-bar';
+    bar.append(document.createElement('span'));
+    box.append(spinner, title, step, bar);
+    overlay.append(box);
+    document.body.append(overlay);
+    document.body.classList.add('writing-open');
+
+    let index = 0;
+    const timer = setInterval(() => {
+      index = Math.min(index + 1, WRITING_STEPS.length - 1);
+      step.textContent = WRITING_STEPS[index];
+    }, WRITING_MIN_MS / WRITING_STEPS.length);
+
+    return {
+      done() {
+        clearInterval(timer);
+        overlay.classList.add('is-leaving');
+        document.body.classList.remove('writing-open');
+        setTimeout(() => overlay.remove(), 250);
+      },
+    };
+  }
+
+  /** 초안 화면의 분석이 끝날 때까지(최대 maxMs) 기다린다. */
+  async function waitDraftSettled(maxMs) {
+    const started = Date.now();
+    while (Date.now() - started < maxMs) {
+      const st = DraftView._state();
+      if (!st || ['ready', 'failed', 'submitted'].includes(st.status) || st.requestFailed) return;
+      await sleep(200);
+    }
+  }
+
   // ---------- 폼 ----------
   content.addEventListener('input', () => content.classList.remove('invalid'));
 
@@ -268,25 +436,36 @@
     // 미리보기·메일 경로가 쓰는 로컬 사본. 서버 저장과 별개로 유지해, 보고서
     // 미리보기 탭과 Gmail 발송이 그대로 동작한다.
     const recordedAt = voiceRecordingStartedAt || null;
+    const photos = selectedPhotos;
     pendingReport = {
       content: text,
       createdAt: new Date().toISOString(),
       recordedAt,
+      photos: photos.map((photo) => ({ url: photo.dataUrl })),
     };
     voiceRecordingStartedAt = null;
     renderPreview(pendingReport);
 
     const report = { content: text, createdAt: pendingReport.createdAt };
+    const writing = showWriting();
+    const minShown = sleep(WRITING_MIN_MS);
 
     try {
       const result = await ReportStore.submit(report);
       if (result.id) saveRecordedAt(result.id, recordedAt);
       form.reset();
+      selectedPhotos = [];
+      renderPhotoThumbs();
       await renderHistory();
+
+      // 초안 화면이 열릴 때 사진이 이미 보이도록 먼저 올린다.
+      if (result.id && !result.queued && photos.length) await uploadPhotos(result.id, photos);
 
       if (result.queued) {
         // 전송조차 못 했으면 초안 화면을 열 대상이 없다. 원문은 큐에 안전하게
         // 남아 있고, 연결되면 전송된다. 미리보기·메일은 로컬 사본으로 쓸 수 있다.
+        await minShown;
+        writing.done();
         history.replaceState(null, '', '#preview');
         showTab('preview');
         toast('지금은 연결이 안 되어 저장해 두었습니다. 연결되면 자동으로 전송됩니다.');
@@ -303,8 +482,12 @@
           if (outcome.submitted) toast('신고가 접수되었습니다. 감사합니다!');
         },
       });
+      // 초안 화면은 작성 중 화면 뒤에서 열리고 분석을 시작한다.
+      await Promise.all([minShown, waitDraftSettled(WRITING_MAX_MS)]);
+      writing.done();
     } catch (err) {
       console.error(err);
+      writing.done();
       toast('전송에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     }
   });
@@ -334,7 +517,8 @@
         draft: body.draft,
         engine: body.engine,
         risk: body.risk,
-        photos: body.photos || [],
+        // 서버에 사진이 없으면(업로드 실패 등) 이 기기에서 고른 사진을 그대로 둔다.
+        photos: body.photos && body.photos.length ? body.photos : (pendingReport && pendingReport.photos) || [],
         ...(await ownReportIdentity(reportId)),
       };
       renderPreview(pendingReport);

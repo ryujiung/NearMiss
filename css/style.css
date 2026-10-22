@@ -1271,3 +1271,110 @@ body.draft-open { overflow: hidden; }
   .sheet-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .sheet-photos img, .sheet-photo-empty { aspect-ratio: auto; height: 45mm; }
 }
+
+/* ===== 신고 화면: 사진 첨부 ===== */
+.photo-picker { margin: 14px 0 16px; }
+.photo-picker-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.photo-picker-head .main-label { margin: 0; }
+.photo-count { color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+.photo-picker-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn-photo-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 10px;
+  border: 1px dashed var(--primary);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-photo-pick svg { width: 20px; height: 20px; flex-shrink: 0; }
+.btn-photo-pick:active { background: #eef2f8; }
+.btn-photo-pick.disabled { border-color: var(--border); color: var(--muted); cursor: default; }
+.btn-photo-pick:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.photo-thumbs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.photo-thumbs:empty { display: none; }
+.photo-thumb { position: relative; }
+.photo-thumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.photo-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* ===== 보고서 작성 중 화면 ===== */
+body.writing-open { overflow: hidden; }
+.writing-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100; /* 초안 패널(50) 위 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  /* 불투명 — 뒤에서 열리는 결과가 비치면 '작성 중'이 의미가 없다 */
+  background: var(--bg);
+  animation: writing-in 200ms ease;
+}
+.writing-overlay.is-leaving { opacity: 0; transition: opacity 250ms ease; }
+.writing-box {
+  width: min(320px, 100%);
+  padding: 28px 22px 24px;
+  border-radius: 16px;
+  background: var(--card);
+  text-align: center;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+}
+.writing-spinner {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 14px;
+  border: 4px solid #dce5ef;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: writing-spin 0.9s linear infinite;
+}
+.writing-title { margin: 0 0 6px; font-size: 1.1rem; font-weight: 800; color: var(--text); }
+.writing-step { margin: 0 0 16px; min-height: 1.4em; font-size: 0.9rem; color: var(--muted); }
+.writing-bar { height: 6px; border-radius: 999px; background: #e6edf5; overflow: hidden; }
+.writing-bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: writing-fill 2.5s ease-out forwards;
+}
+@keyframes writing-spin { to { transform: rotate(360deg); } }
+@keyframes writing-fill { to { width: 92%; } }
+@keyframes writing-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .writing-spinner { animation-duration: 2.5s; }
+  .writing-overlay { animation: none; }
+}

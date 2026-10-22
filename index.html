@@ -54,6 +54,27 @@
         <span class="mic-label">눌러서 말하기</span>
       </button>
 
+      <!-- 사진 첨부 — 속보 양식의 사진 칸이 2개라 2장까지 받는다 -->
+      <div class="photo-picker">
+        <div class="photo-picker-head">
+          <span class="main-label">현장 사진 <span class="field-note">(선택)</span></span>
+          <span id="photo-count" class="photo-count">0/2</span>
+        </div>
+        <div class="photo-picker-buttons">
+          <label class="btn-photo-pick" id="photo-camera-btn">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
+            <span>직접 촬영</span>
+            <input type="file" id="photo-camera" accept="image/*" capture="environment" class="photo-input" />
+          </label>
+          <label class="btn-photo-pick" id="photo-gallery-btn">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z"/></svg>
+            <span>앨범에서 선택</span>
+            <input type="file" id="photo-gallery" accept="image/*" multiple class="photo-input" />
+          </label>
+        </div>
+        <div id="photo-thumbs" class="photo-thumbs"></div>
+      </div>
+
       <button type="submit" class="btn-submit">신고하기</button>
     </form>
 

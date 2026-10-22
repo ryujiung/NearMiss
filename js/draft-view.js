@@ -130,7 +130,7 @@
     const input = el('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.capture = 'environment';
+    // capture를 두지 않는다 — 휴대폰이 '촬영/앨범' 선택지를 띄워 둘 다 쓸 수 있다.
     input.className = 'photo-input';
     if (count >= MAX_PHOTOS) {
       input.disabled = true;
