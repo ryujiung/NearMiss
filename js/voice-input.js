@@ -23,6 +23,14 @@
   // 이 에러가 나면 자동 재시작하지 않음
   const FATAL_ERRORS = ['not-allowed', 'service-not-allowed', 'audio-capture', 'network'];
 
+  // 녹음본으로 전환할 때 쓰는 안내. 실패를 숨기지 않되 시연이 끊기지 않게 한다.
+  const FALLBACK_MESSAGES = {
+    'network': '음성 인식 서버에 연결할 수 없어 녹음본으로 진행합니다.',
+    'service-not-allowed': '이 브라우저에서 음성 인식을 쓸 수 없어 녹음본으로 진행합니다.',
+    'not-allowed': '마이크 권한이 없어 녹음본으로 진행합니다.',
+    'audio-capture': '마이크를 찾을 수 없어 녹음본으로 진행합니다.',
+  };
+
   // 녹음을 듣고 받아쓰는 것처럼 보이게 하는 속도 설정.
   //
   // 글자를 일정한 간격으로 쏟아내면 "와다다다" 타이핑처럼 보인다. 사람이 말하는
@@ -200,11 +208,32 @@
       };
 
       rec.onerror = (event) => {
-        if (FATAL_ERRORS.includes(event.error)) {
-          this.listening = false;
-          this.onError(ERROR_MESSAGES[event.error] || `음성 인식 오류: ${event.error}`);
-        }
+        if (!FATAL_ERRORS.includes(event.error)) return;
         // 'no-speech', 'aborted' 등은 onend에서 재시작 여부 판단
+
+        // 실제 인식이 불가능해졌지만 녹음본이 있으면 그것으로 이어간다.
+        //
+        // Chrome의 음성 인식은 오디오를 Google 서버로 보내 변환하므로, 사내망·
+        // VPN·방화벽에서 'network'로 실패하는 일이 흔하다. 마이크 자체는 멀쩡해서
+        // "마이크 미지원" 경로에 걸리지 않고, 그대로 두면 시연이 거기서 끊긴다.
+        if (this.script && !this.scripted) {
+          this.scripted = true;
+          this.scriptPos = 0;
+          rec.onresult = rec.onend = rec.onerror = null;
+          try {
+            rec.abort();
+          } catch (e) {
+            /* 이미 끊긴 세션일 수 있다 */
+          }
+          this.recognition = null;
+          this.onError(FALLBACK_MESSAGES[event.error] || '음성 인식을 쓸 수 없어 녹음본으로 진행합니다.');
+          this._render('');
+          this._startSession();
+          return;
+        }
+
+        this.listening = false;
+        this.onError(ERROR_MESSAGES[event.error] || `음성 인식 오류: ${event.error}`);
       };
 
       rec.onend = () => {
