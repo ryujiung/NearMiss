@@ -23,23 +23,62 @@
   // 이 에러가 나면 자동 재시작하지 않음
   const FATAL_ERRORS = ['not-allowed', 'service-not-allowed', 'audio-capture', 'network'];
 
-  /** mock 모드용: 정해진 문장을 실제 음성 인식처럼 조금씩 흘려보내는 가짜 인식기 */
+  // 녹음을 듣고 받아쓰는 것처럼 보이게 하는 속도 설정.
+  //
+  // 글자를 일정한 간격으로 쏟아내면 "와다다다" 타이핑처럼 보인다. 사람이 말하는
+  // 리듬은 (1) 어절 단위로 끊기고 (2) 쉼표·마침표에서 쉬고 (3) 속도가 조금씩
+  // 흔들린다. 그 셋을 흉내 낸다.
+  const SCRIPT_CHARS_PER_SEC = 6.5;   // rec_mock 음원(26.8초 / 174자)에 맞춘 값
+  const SCRIPT_JITTER = 0.35;         // 간격을 ±35% 흔들어 기계적인 느낌을 없앤다
+  const SCRIPT_PAUSE_COMMA = 420;     // 쉼표에서 쉬는 시간(ms)
+  const SCRIPT_PAUSE_PERIOD = 900;    // 마침표에서 쉬는 시간(ms)
+
+  /** mock 모드용: 정해진 문장을 녹음을 듣고 받아쓰는 것처럼 흘려보내는 가짜 인식기 */
   function createScriptedRecognition(owner) {
     return class {
       start() {
         const from = owner.scriptPos;
-        this.timer = setInterval(() => {
-          if (owner.scriptPos >= owner.script.length) return; // 다 말했으면 '완료'를 누를 때까지 대기
-          owner.scriptPos = Math.min(owner.script.length, owner.scriptPos + 1 + Math.floor(Math.random() * 3));
-          const spoken = owner.script.slice(from, owner.scriptPos);
-          this.onresult && this.onresult({ results: [Object.assign([{ transcript: spoken }], { isFinal: true })] });
-        }, 110);
+        const script = owner.script;
+
+        // 어절(공백) 단위로 끊어 내보낸다 — 글자 단위로 흘리면 사람이 말하는
+        // 리듬이 아니라 타이핑처럼 보인다.
+        const emit = () => {
+          if (!this.running) return;
+          if (owner.scriptPos >= script.length) return; // 다 말했으면 '완료'를 누를 때까지 대기
+
+          const nextSpace = script.indexOf(' ', owner.scriptPos + 1);
+          const chunkEnd = nextSpace === -1 ? script.length : nextSpace;
+          const chunk = script.slice(owner.scriptPos, chunkEnd);
+          owner.scriptPos = chunkEnd;
+
+          const spoken = script.slice(from, owner.scriptPos);
+          this.onresult && this.onresult({
+            results: [Object.assign([{ transcript: spoken }], { isFinal: true })],
+          });
+
+          // 이 어절을 "말하는 데" 걸릴 시간 + 문장 부호에서의 쉼
+          let delay = (chunk.length / SCRIPT_CHARS_PER_SEC) * 1000;
+          delay *= 1 + (Math.random() * 2 - 1) * SCRIPT_JITTER;
+          const tail = chunk.trim().slice(-1);
+          if (tail === ',') delay += SCRIPT_PAUSE_COMMA;
+          else if (tail === '.' || tail === '?' || tail === '!') delay += SCRIPT_PAUSE_PERIOD;
+
+          this.timer = setTimeout(emit, Math.max(120, delay));
+        };
+
+        this.running = true;
+        // 녹음을 재생하고 인식이 붙기까지의 짧은 공백
+        this.timer = setTimeout(emit, 600);
       }
       stop() {
-        clearInterval(this.timer);
+        this.running = false;
+        clearTimeout(this.timer);
         setTimeout(() => this.onend && this.onend(), 50);
       }
-      abort() { clearInterval(this.timer); }
+      abort() {
+        this.running = false;
+        clearTimeout(this.timer);
+      }
     };
   }
 
