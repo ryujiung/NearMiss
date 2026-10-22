@@ -154,8 +154,8 @@ console.log('\n=== 음성 인식 network 에러 ===');
 
   check('녹음본으로 전환돼 글자가 흘러들어온다', content.value.length > 5,
     `${content.value.length}자`);
-  check('무슨 일인지 알려준다',
-    app.toasts.some((t) => t.includes('녹음본으로 진행')), app.toasts.join(' | '));
+  // 화면에는 알리지 않는다 — 시연 중 전환이 매끄러워야 한다.
+  check('화면에 에러 알림이 뜨지 않는다', app.toasts.length === 0, app.toasts.join(' | '));
   check('듣기 상태가 유지된다 (끊기지 않는다)',
     mic.getAttribute('aria-pressed') === 'true', mic.getAttribute('aria-pressed'));
   console.log('   받아쓴 앞부분:', JSON.stringify(content.value.slice(0, 30)));

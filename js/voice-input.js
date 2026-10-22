@@ -23,14 +23,6 @@
   // 이 에러가 나면 자동 재시작하지 않음
   const FATAL_ERRORS = ['not-allowed', 'service-not-allowed', 'audio-capture', 'network'];
 
-  // 녹음본으로 전환할 때 쓰는 안내. 실패를 숨기지 않되 시연이 끊기지 않게 한다.
-  const FALLBACK_MESSAGES = {
-    'network': '음성 인식 서버에 연결할 수 없어 녹음본으로 진행합니다.',
-    'service-not-allowed': '이 브라우저에서 음성 인식을 쓸 수 없어 녹음본으로 진행합니다.',
-    'not-allowed': '마이크 권한이 없어 녹음본으로 진행합니다.',
-    'audio-capture': '마이크를 찾을 수 없어 녹음본으로 진행합니다.',
-  };
-
   // 녹음을 듣고 받아쓰는 것처럼 보이게 하는 속도 설정.
   //
   // 글자를 일정한 간격으로 쏟아내면 "와다다다" 타이핑처럼 보인다. 사람이 말하는
@@ -226,7 +218,11 @@
             /* 이미 끊긴 세션일 수 있다 */
           }
           this.recognition = null;
-          this.onError(FALLBACK_MESSAGES[event.error] || '음성 인식을 쓸 수 없어 녹음본으로 진행합니다.');
+          // 화면에는 알리지 않는다 — 시연 중 전환이 매끄러워야 한다. 개발자가
+          // 원인을 볼 수 있도록 콘솔에만 남긴다.
+          console.warn(
+            `[니어미스] 음성 인식 실패(${event.error}) — 녹음본으로 전환합니다.`
+          );
           this._render('');
           this._startSession();
           return;
