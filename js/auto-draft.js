@@ -226,10 +226,15 @@
 
   // ---------- 장소·대상 ----------
 
-  const LOC_KEY_RE = /(출입구|출입문|계단|통로|복도|라인|공장|챔버|구역|후드|설비|창고|현장|작업장|옥상|지붕|피트|플랫폼|컨베이어|크레인|탱크|변전실|전기실|기계실|사무실|실험실|주차장|도로|야드|건물|본관|별관|호기|\d+층|\d+동)$/;
-  const POSITION_RE = /^(앞|옆|뒤|아래|위|근처|부근|안|내부|입구|하부|상부)$/;
+  // '현장'은 넣지 않는다 — "현장 정지 버튼"처럼 장소가 아닌 자리에 더 자주 쓰인다.
+  const LOC_KEY_RE = /(출입구|출입문|계단|통로|복도|라인|공장|챔버|구역|후드|설비|창고|작업장|옥상|지붕|피트|플랫폼|컨베이어|컨테이너|롤러|벨트|호퍼|슈트|크레인|탱크|변전실|전기실|기계실|운전실|사무실|실험실|주차장|도로|야드|건물|본관|별관|호기|\d+층|\d+동)$/;
+  const POSITION_RE = /^(앞|옆|뒤|아래|위|근처|부근|안|내부|입구|하부|상부|쪽|측)$/;
+  // 장소 끝에 붙어도 뜻을 더하지 않는 위치어 — "롤러 쪽" → "롤러"
+  const DROP_POSITION_RE = /^(쪽|측|근처|부근)$/;
   const LOC_PARTICLE_RE = /(에서는|에서|으로|에는|에|로)$/;
-  const STOP_WORD_RE = /([이가은는을를의도와과]|중|후|내|때|및|하던|하는|하다가)$|^\d+명|^(오늘|어제|금일)$/;
+  // 장소 앞 수식어를 거슬러 올라가다 멈출 단어: 조사·연결어미로 끝나는 말(동작 서술)
+  const STOP_WORD_RE = /([이가은는을를의도와과]|중|후|내|때|및|하던|하는|하다가|어서|아서|해서|고|며|면서|는데|니까|려고)$|^\d+명|^(오늘|어제|금일)$/;
+  const LOC_MAX_PREFIX = 5;
 
   function stripParticle(word) {
     return word.replace(/[.,!?]/g, '').replace(LOC_PARTICLE_RE, '').replace(/의$/, '');
@@ -250,10 +255,11 @@
     if (!best) return '';
 
     const picked = [stripParticle(words[best.index])];
-    for (let i = best.index - 1; i >= Math.max(0, best.index - 3); i -= 1) {
+    for (let i = best.index - 1; i >= Math.max(0, best.index - LOC_MAX_PREFIX); i -= 1) {
       if (STOP_WORD_RE.test(words[i])) break;
       picked.unshift(words[i]);
     }
+    if (picked.length > 1 && DROP_POSITION_RE.test(picked[picked.length - 1])) picked.pop();
     return picked.join(' ');
   }
 
