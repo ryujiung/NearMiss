@@ -158,7 +158,7 @@
         value: d.value,
       };
     });
-    return { ...stats, daily: shifted, demo: true };
+    return { ...stats, daily: shifted };
   }
 
   async function renderStats(period) {
@@ -173,7 +173,7 @@
     }
 
     try {
-      NearMissStats.render(statsRoot, await loadDemoStats(), { period, demo: true });
+      NearMissStats.render(statsRoot, await loadDemoStats(), { period });
     } catch (err) {
       console.error(err);
       statsRoot.textContent = '통계를 불러오지 못했습니다.';

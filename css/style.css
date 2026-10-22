@@ -1378,13 +1378,3 @@ body.writing-open { overflow: hidden; }
   .writing-spinner { animation-duration: 2.5s; }
   .writing-overlay { animation: none; }
 }
-
-.stats-demo-note {
-  margin: 0 0 12px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #fdf0d5;
-  border: 1px solid #f0d79a;
-  color: #8a5a00;
-  font-size: 13px;
-}

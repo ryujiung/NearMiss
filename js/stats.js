@@ -192,14 +192,6 @@
       return;
     }
 
-    // 서버 없이 배포된 화면에서는 데모 데이터로 그린다. 실시간 집계로
-    // 오해하지 않도록 밝혀 둔다.
-    if (opts.demo) {
-      container.append(
-        el('p', 'stats-demo-note', '시연용 샘플 데이터입니다. 서버에 연결하면 실제 집계가 표시됩니다.')
-      );
-    }
-
     container.append(tiles(stats));
 
     const daily = dailyItems(stats.daily);
