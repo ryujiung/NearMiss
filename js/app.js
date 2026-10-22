@@ -136,12 +136,44 @@
     })
   );
 
+  /**
+   * 서버가 없는 배포(정적 호스팅)에서 쓰는 데모 통계.
+   *
+   * mock/stats.json은 실제 집계 API에서 뽑은 값이라 숫자가 서로 맞는다. 다만
+   * 날짜가 박혀 있으면 나중에 열었을 때 차트가 과거로 보이므로, 받아온 뒤
+   * 오늘 기준으로 밀어준다.
+   */
+  async function loadDemoStats() {
+    const res = await fetch('mock/stats.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`데모 통계를 불러오지 못했습니다: ${res.status}`);
+    const stats = await res.json();
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const today = new Date();
+    const shifted = stats.daily.map((d, i) => {
+      const day = new Date(today);
+      day.setDate(today.getDate() - (stats.daily.length - 1 - i));
+      return {
+        date: `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`,
+        value: d.value,
+      };
+    });
+    return { ...stats, daily: shifted, demo: true };
+  }
+
   async function renderStats(period) {
     try {
       const params = period ? `?period=${encodeURIComponent(period)}` : '';
       const res = await fetch(`/api/stats${params}`);
       if (!res.ok) throw new Error(`통계 조회 실패: ${res.status}`);
       NearMissStats.render(statsRoot, await res.json(), { period });
+      return;
+    } catch (err) {
+      console.warn('[니어미스] 집계 API를 쓸 수 없어 데모 데이터로 그립니다', err);
+    }
+
+    try {
+      NearMissStats.render(statsRoot, await loadDemoStats(), { period, demo: true });
     } catch (err) {
       console.error(err);
       statsRoot.textContent = '통계를 불러오지 못했습니다.';
